@@ -1,0 +1,16 @@
+{
+  "name": "sovereign-agent-keys-contracts",
+  "version": "1.0.0",
+  "description": "0G Chain contracts for Sovereign Agent Keys",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "typescript": "~5.0.4",
+    "ts-node": "^10.9.2"
+  }
+}
