@@ -6,6 +6,25 @@ Built for the **0G Labs APAC Hackathon (Akon's Quest)**.
 
 ---
 
+## 🏆 Hackathon Submission Details
+
+### 1. Code Repository
+*   **GitHub Link:** [https://github.com/barneybo18/OGsovergienkey](https://github.com/barneybo18/OGsovergienkey)
+*   **Visibility:** Public
+*   **Progress:** This repository contains a full-stack modular architecture developed during the hackathon period, including L1 Smart Contracts, a ZK Proving Engine, AI Orchestration logic, and a Mission Control dashboard.
+
+### 2. 0G Integration Proof
+*   **0G Chain Contract (EVM):** `0x...` *(Pending Final Settlement)*
+*   **0G Explorer Link:** [View Verification Activity](https://explorer.testnet.0g.ai/)
+*   **Integrated 0G Components:**
+    *   **0G Storage:** Stores encrypted MPC key shards and permanent agent memory logs.
+    *   **0G DA (Data Availability):** Used for low-latency, verifiable intent logging.
+    *   **0G Chain (EVM):** Orchestrates the Sovereign Agent Registry and ZK Verifier logic.
+    *   **Privacy features:** Integrated **Succinct SP1 ZKVM** for secure constraint execution within the 0G stack.
+
+---
+
+
 ## 🚀 The Vision
 
 We are witnessing the birth of the **Machine Economy**, where AI agents will transact, negotiate, and execute intent on behalf of humans or themselves. But there is a massive, systemic vulnerability in how AI agents operate today: **They are tenants.** 
