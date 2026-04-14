@@ -16,7 +16,7 @@ struct AgentIntent {
     pub intent_amount: u64,
     pub target_address: [u8; 20],
     pub asset_id: u32,
-    pub signature: [u8; 64], // Simulated approval signature
+    pub signature: Vec<u8>, // Simulated approval signature
 }
 
 pub fn main() {
