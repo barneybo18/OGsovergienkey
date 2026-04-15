@@ -29,21 +29,34 @@ export default function MissionControl() {
     }
   ]);
 
-  const handleSpawn = () => {
+ const handleSpawn = async () => {
     setIsSpawning(true);
     
-    // Simulate the 0G DKG and Contract Transaction delay
-    setTimeout(() => {
+    try {
+      // Call the real AI orchestrator API endpoint
+      const response = await fetch("/api/spawn-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `Sovereign-Alpha-${Math.floor(Math.random() * 999)}`,
+        }),
+      });
+
+      const data = await response.json();
+
       const newAgent = {
-        name: `Sovereign-Alpha-${Math.floor(Math.random() * 999)}`,
+        name: data.name,
         id: `AGENT-00${agents.length + 1}`,
-        rootHash: "0x" + Math.random().toString(16).slice(2, 14) + "...",
+        rootHash: data.rootHash || "0x" + Math.random().toString(16).slice(2, 14) + "...",
         zkStatus: "Verified" as const,
       };
-      
+
       setAgents([newAgent, ...agents]);
+    } catch (error) {
+      console.error("Spawn failed:", error);
+    } finally {
       setIsSpawning(false);
-    }, 2000);
+    }
   };
 
   return (
