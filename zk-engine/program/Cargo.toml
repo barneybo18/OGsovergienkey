@@ -4,5 +4,6 @@ name = "sovereign-agent-program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = "3.0.0"          # The core zkVM guest library
+sp1-zkvm = "4.0.1"          # Upgraded core zkVM guest library
 serde = { version = "1.0", features = ["derive"] }
+bytemuck = { version = "1.14", features = ["derive"] }

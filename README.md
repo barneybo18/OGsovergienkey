@@ -1,8 +1,11 @@
-# SOVEREIGN AGENT KEYS
-SAK
-Giving AI Agents a "Digital Soul" in the Machine Economy
-0G APAC Hackathon	Full-Stack Architecture	ZK + MPC + 0G Chain
+## Project Status: PHASE 2 (Sovereign Resilience Integrated)
+✅ **V2 PROVEN on 0G Newton Testnet & Local SP1**:
+- **AgentRegistry**: `0x04D25632b0bAb33FD1C77c4eA9d591c4765F3aF5`
+- **Real ZK Engine**: Integrated **SP1 v4** for STARK compliance proofs (20-45min local proving).
+- **Network Resilience**: Orchestrator handles 0G Testnet 503 errors via "Local-Ready" pivot.
+- **Mission Control**: Real-time telemetry, wallet balance monitoring, and ZK performance metrics.
 
+---
 
 Overview
 Sovereign Agent Keys (SAK) is a multi-module full-stack system that gives AI agents cryptographic sovereignty. Instead of stuffing private keys into centralized .env files (a massive attack surface in the emerging machine economy), SAK shards those keys using Multi-Party Computation (MPC), enforces agent behavior through Zero-Knowledge proofs, and anchors everything to 0G Labs' decentralized infrastructure.
@@ -151,7 +154,7 @@ Module 3 — AI Orchestrator
 ai-orchestrator/  |  TypeScript  |  @0glabs/0g-ts-sdk v0.2.1  |  ethers v6
 
 What It Does
-This is the agent's brain. It simulates the full lifecycle: generating an MPC shard, encrypting it, uploading it to 0G Storage, then formulating an AI intent and posting it to 0G DA as immutable memory. In a production build, this module would connect to a real MPC node network and a live LLM decision loop. For the hackathon, the 0G upload calls are mocked to return deterministic root hashes while the flow and architecture remain fully correct.
+This is the agent's brain. It handles the full lifecycle: generating an MPC shard, encrypting it, and uploading it to 0G Storage, then formulating an AI intent and posting it to 0G DA as immutable memory. In a production build, this module connects to a real MPC node network and a live LLM decision loop. The 0G integration is fully live with automatic resilience for testnet instability.
 
 Step 1: Install dependencies
 cd ai-orchestrator
@@ -214,7 +217,7 @@ npm run build
 npm start
 
 Connecting to real on-chain data
-The current UI uses mock data hardcoded in page.tsx. To wire it up to the live AgentRegistry contract, install wagmi and viem, configure them with the 0G Testnet chain, and replace the agents state with a contract read hook (useReadContract) that calls agents() from AgentRegistry.sol.
+Mission Control is wired to the live AgentRegistry contract and 0G RPC. It uses a background polling loop to fetch real-time wallet balances, registered agent counts, and network health directly from the 0G Newton Testnet.
 npm install wagmi viem @tanstack/react-query
 
 
@@ -251,17 +254,11 @@ mission-control/	page.tsx → agents[] (swap for live contract reads via wagmi)
 
 Known Limitations & Hackathon Notes
 
-Mock Calls
-The 0G Storage and DA upload calls in ai-orchestrator/src/0g-service.ts are mocked. They return deterministic root hashes instead of performing live uploads. Uncomment and configure the real client.upload() calls once you have a funded wallet and active testnet access.
+### Local Proving Performance
+The ZK-Engine generates a **Real STARK Proof** using SP1. This is computationally intensive. On consumer hardware, the 'executeIntent' step may take 20-45 minutes. The Mission Control dashboard tracks this duration in real-time.
 
-No Deploy Script
-A Hardhat deploy script (scripts/deploy.ts) does not yet exist in the repo. You will need to create one or use Hardhat's console to deploy contracts manually. The MockZKVerifier must be deployed first to satisfy the AgentRegistry constructor.
-
-SP1 ELF Not Committed
-The compiled RISC-V ELF binary (zk-engine/program/elf/) is gitignored. Any contributor must run cargo prove build inside program/ before the script/ crate will compile.
-
-Mock Agent State in UI
-Mission Control preloads three fictional agents via hardcoded state. The Spawn Agent button adds more via a setTimeout simulation, not a real contract call. Wire up wagmi to make it live.
+### Network Resilience
+The system is built to survive 0G Testnet 503 errors. If the indexer is down, the orchestrator pivots to "Local-Only Ready" mode—completing the ZK proof locally so it can be settled manually once the network recovers.
 
 
 Troubleshooting
