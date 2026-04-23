@@ -15,8 +15,8 @@ Our architecture is divided into 4 primary layers:
 *   **Functionality:** The "brain". It evaluates external triggers (price feeds, social sentiment, specific prompts) and decides on an intent. It operates in an isolated environment and never holds the full private key in memory.
 
 ### 3. The Trustless Privacy Engine (ZK Proving Layer)
-*   **Stack:** RISC Zero / Succinct.
-*   **Functionality:** When the AI formulates an intent (e.g., "Swap 1 ETH for 0G Tokens"), it passes this intent and its current Constitution to the ZK Prover. The prover generates a SNARK verifying that the intent mathematically adheres to the Constitution.
+*   **Stack:** circom + snarkjs (Groth16).
+*   **Functionality:** When the AI formulates an intent (e.g., "Swap 1 ETH for 0G Tokens"), it passes this intent and its current Constitution to the ZK Prover. The prover generates a Groth16 SNARK verifying that the intent mathematically adheres to the Constitution.
 *   **Zero-Knowledge aspect:** The proof can verify the agent didn't exceed a USD limit without having to publicly reveal the exact USD limit or the agent's underlying proprietary trading model.
 
 ### 4. Decentralized Custody & Settlement (0G Labs & MPC)
@@ -35,12 +35,12 @@ Our architecture is divided into 4 primary layers:
 
 ### Phase 2: Intent Generation & ZK Proof
 1.  **Decision:** The AI Orchestrator decides an action must be taken based on market conditions.
-2.  **ZK Proving:** A RISC Zero/Succinct circuit runs. It takes the proposed transaction, the current state, and the Constitution as inputs. It outputs a `Proof`.
+2.  **ZK Proving:** A circom/snarkjs Groth16 circuit runs. It takes the proposed transaction, the current state, and the Constitution as inputs. It outputs a `Groth16Proof` (proof points A, B, C + public signals).
 3.  **DA Posting:** The raw intent data and off-chain context are bundled and pushed to **0G DA** to guarantee data availability for the MPC signing nodes, preventing data censorship.
 
 ### Phase 3: MPC Verification & Signing
-1.  **Request:** The AI submits the `(TransactionData, ZKProof, 0G_DA_Reference)` to the MPC node network.
-2.  **Validation:** The MPC nodes call the Verifier Smart Contract on the 0G Chain to validate the ZKProof.
+1.  **Request:** The AI submits the `(TransactionData, Groth16Proof, 0G_DA_Reference)` to the MPC node network.
+2.  **Validation:** The MPC nodes call the Groth16Verifier Smart Contract on the 0G Chain to validate the proof via elliptic curve pairing checks.
 3.  **Retrieval:** Nodes pull their encrypted key shards from **0G Storage** and decrypt them in-memory.
 4.  **Threshold Signature:** Since the ZK proof is valid (meaning the AI followed its rules), the nodes threshold-sign the EVM transaction.
 5.  **Memory Commit:** The EVM transaction is broadcast to the 0G Chain. Concurrently, the success payload and state changes are written to **0G Storage**. This builds the agent's immutable, verifiable "Memory".
@@ -50,7 +50,7 @@ Our architecture is divided into 4 primary layers:
 Without 0G, this architecture collapses under gas fees and data bottlenecks.
 *   **0G Storage:** MPC nodes need a highly available, robust decentralized storage layer to hold encrypted key material. Traditional IPFS is ephemeral; AR/Filecoin UX is clunky. 0G Storage provides the native speed and permanence required for instant shard retrieval during the singing phase.
 *   **0G DA:** ZK proofs are small, but the *intent data* and the *AI context logs* are massive. Posting these to Ethereum or standard L2s for verification would bankrupt the agent. 0G DA provides the massive throughput required to log an AI's constant stream of thoughts and intents affordably.
-*   **0G Chain (EVM):** Highly scalable L1 execution for the ZK Verifier contracts and standard operations.
+*   **0G Chain (EVM):** Highly scalable L1 execution for the Groth16 Verifier contracts and standard operations.
 
 ---
 

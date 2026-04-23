@@ -11,7 +11,7 @@ The project was built for the 0G Labs APAC Hackathon (Akon's Quest) and consists
 
 Module	Stack	Role
 contracts/	Solidity + Hardhat	On-chain Agent Registry and ZK Verifier interface deployed to 0G EVM
-zk-engine/	Rust + SP1 (Succinct)	Zero-Knowledge proving circuit that validates agent intent against its Constitution
+zk-engine/	circom + snarkjs (Groth16)	Zero-Knowledge proving circuit that validates agent intent against its Constitution
 ai-orchestrator/	TypeScript + 0G SDK	Agent brain: formulates intents, uploads shards to 0G Storage, logs memory to 0G DA
 mission-control/	Next.js 16 + Tailwind	Frontend dashboard for spawning agents, monitoring ZK status, and viewing intent logs
 
@@ -20,15 +20,13 @@ Prerequisites
 Install all of the following before touching any module. Each module has its own language runtime — missing one will break that layer.
 
 Tool	Version	Purpose
-Node.js	>=20.x	Required by contracts/ and ai-orchestrator/ and mission-control/
+Node.js	>=20.x	Required by all modules (contracts, ai-orchestrator, mission-control, zk-engine)
 npm	>=9.x	Package manager (yarn or pnpm also work)
-Rust	stable (>=1.75)	Required by the zk-engine/ ZK proving circuit
-Cargo	bundled with Rust	Rust's package manager and build tool
-SP1 Toolchain	v3.x	Succinct's SP1 zkVM — installs separately, see below
+circom	v2.1.x	Circuit compiler for the ZK engine
 Git	any recent	Clone the repo
 
-Install SP1 Toolchain
-SP1 does not come bundled with Rust. Run the official installer:   curl -L https://sp1.succinct.xyz | bash   sp1up This installs the sp1 CLI and the riscv32im-succinct-zkvm target used by the ZK engine.
+Install circom compiler
+Install globally via npm:   npm install -g circom@latest   Or download the binary from the circom GitHub releases page.
 
 
 Repository Structure
@@ -42,9 +40,9 @@ OGsovergienkey/
 │   │       └── MockZKVerifier.sol
 │   ├── hardhat.config.ts
 │   └── package.json
-├── zk-engine/                 # Rust: SP1 ZK proving circuit
-│   ├── program/src/main.rs    # Guest program (runs inside zkVM)
-│   └── script/src/main.rs     # Host prover script (generates proof)
+├── zk-engine/                 # circom + snarkjs: Groth16 ZK proving
+│   ├── circuits/constitution.circom  # ZK circuit (constraint definitions)
+│   └── src/prover.ts          # Groth16 proof generator (TypeScript)
 ├── ai-orchestrator/           # TypeScript: Agent brain + 0G SDK
 │   └── src/
 │       ├── agent.ts           # Simulation entry point
@@ -102,49 +100,44 @@ npx hardhat run scripts/deploy.ts --network hardhat
 
 
 Module 2 — ZK Engine
-zk-engine/  |  Rust 2021 Edition  |  SP1 v3.0
+zk-engine/  |  circom 2.1.x  |  snarkjs 0.7.x (Groth16)
 
 What It Does
-This is the privacy layer. It runs a RISC-V ZK circuit (via Succinct's SP1 zkVM) that takes two inputs: the agent's Constitution (max spend limit + whitelisted address) and the agent's proposed intent (amount + target). If both rules pass, it generates a SNARK proof. The proof is small (a few KB) and can be posted on-chain to prove compliance without revealing the underlying constitution values.
+This is the privacy layer. It compiles a circom circuit into R1CS constraints and uses snarkjs to generate Groth16 proofs. The circuit takes two categories of inputs: private (the agent's Constitution — max spend limit + whitelisted address) and public (the agent's proposed intent — amount, target, asset). If both constraints pass, a Groth16 proof is generated. The proof is extremely small (~256 bytes) and can be verified on-chain via an auto-generated Solidity verifier contract.
 
 Two-Part Structure
-•	program/ — The guest: runs inside the SP1 zkVM. Validates rules, commits public outputs to the journal.
-•	script/ — The host: sets up the prover client, feeds inputs, generates the proof, extracts public outputs.
+•	circuits/ — The circom circuit: defines the arithmetic constraints for Constitution compliance.
+•	src/ — TypeScript prover and verifier: generates proofs via snarkjs, verifies locally, and formats calldata for on-chain submission.
 
-Step 1: Install Rust and SP1
-# Install Rust (if not installed)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
+Step 1: Install dependencies
+cd zk-engine
+npm install
 
-# Install SP1 toolchain
-curl -L https://sp1.succinct.xyz | bash
-sp1up
+Step 2: Compile the circom circuit
+npm run build:circuit
+This compiles the circom circuit to R1CS (constraints) + WASM (witness generator) in the build/ directory.
 
-# Verify
-cargo prove --version
-
-Step 2: Build the guest program (ZK circuit)
-cd zk-engine/program
-cargo prove build
-This compiles the Rust program down to a RISC-V ELF binary at program/elf/riscv32im-succinct-zkvm-elf. That ELF is what the script embeds and proves against.
+Step 3: Run the trusted setup
+npm run setup
+This generates the Powers of Tau ceremony, circuit-specific proving key (zkey), verification key (JSON), and auto-generates the Groth16Verifier.sol Solidity contract in contracts/contracts/.
 
 Important
-The ELF file is gitignored. You must build it before running the prover script. If you skip this step, the script/ crate will fail to compile because it uses include_bytes! on the ELF path.
+The build/ directory is gitignored. You must run build:circuit and setup before generating proofs. The trusted setup only needs to run once per circuit change.
 
-Step 3: Run the prover script
-cd zk-engine/script
-cargo run --release
-Running in release mode is important — debug builds are orders of magnitude slower for ZK proof generation. The script will print intermediate status lines and finish with a verification confirmation.
+Step 4: Generate a proof
+npm run prove
 
 Expected output
-Starting SP1 Prover for Sovereign Agent intent...
+Starting snarkjs Groth16 Prover for Sovereign Agent intent...
 ✅ Proof generated successfully! The Agent followed the Constitution.
-Public Journal reads amount: 800
-Public Journal reads target address: [222, 173, 190, 239, 0, 0, ...]
+Public Signals: intentAmount=800, targetAddress=0xdeadbeef..., assetId=1, valid=1
 ✅ Verification successful.
 
+Step 5: Verify a proof (standalone)
+npm run verify
+
 Modifying the Constitution rules
-The constitution and intent are hardcoded in script/src/main.rs for the hackathon demo. To test a violation, change intent_amount to something above 1000 and re-run — the circuit will panic and proving will fail. To deploy this in production, you would feed constitution and intent as runtime inputs rather than hardcoded values.
+The constitution and intent are hardcoded in src/prover.ts for the hackathon demo. To test a violation, change intentAmount to something above 1000 and re-run — proof generation will fail because no valid witness exists. To deploy this in production, feed constitution and intent as runtime inputs from the AI Orchestrator.
 
 
 Module 3 — AI Orchestrator
@@ -189,9 +182,9 @@ Expected output
 [Flow] Memory committed. Pointer: 0x999999123456...
 
 >> PREPARING SETTLEMENT:
-1. The raw intent data is sent to the RISC Zero / SP1 Prover.
-2. The output ZK Receipt + the 0G DA Root Hash are aggregated.
-3. MPC Nodes verify ZK Proof -> decrypt shard -> sign transaction!
+1. The raw intent data is sent to the snarkjs Groth16 Prover.
+2. The output Groth16 Proof + the 0G DA Root Hash are aggregated.
+3. MPC Nodes verify ZK Proof on-chain -> decrypt shard -> sign transaction!
 ==================================================
 
 
@@ -228,7 +221,7 @@ Phase 2: Intent Formation
 The AI Orchestrator evaluates external signals (price feeds, sentiment, triggers). It formulates an AgentIntent struct specifying action, asset, amount, and target.
 
 Phase 3: ZK Proving
-The intent and the Constitution are fed into the SP1 ZK circuit. The circuit verifies: amount <= max_spend_limit and target == whitelisted_address. A SNARK proof is generated. The raw intent context is posted to 0G DA as a tamperproof memory log.
+The intent and the Constitution are fed into the circom/snarkjs Groth16 circuit. The circuit verifies: intentAmount <= maxSpendLimit and targetAddress === whitelistedAddress. A Groth16 proof (points A, B, C + public signals) is generated. The raw intent context is posted to 0G DA as a tamperproof memory log.
 
 Phase 4: Verification & Settlement
 The AI submits (TransactionData + ZKProof + 0G_DA_Reference) to the MPC node network. MPC nodes call IZKVerifier.verify() on the 0G Chain. If valid, nodes retrieve shards from 0G Storage, sign the transaction via threshold signature, and broadcast it.
@@ -245,7 +238,7 @@ Key values you will need to update across modules when deploying to a real netwo
 Module	Config File / Variable
 contracts/	hardhat.config.ts → PRIVATE_KEY, url, chainId
 ai-orchestrator/	.env → PRIVATE_KEY, RPC_ENDPOINT, STORAGE_NODE_URL, INDEXER_URL
-zk-engine/	script/src/main.rs → max_spend_limit, whitelisted_address, intent values
+zk-engine/	src/prover.ts → maxSpendLimit, whitelistedAddress, intent values
 mission-control/	page.tsx → agents[] (swap for live contract reads via wagmi)
 
 
@@ -255,10 +248,10 @@ Mock Calls
 The 0G Storage and DA upload calls in ai-orchestrator/src/0g-service.ts are mocked. They return deterministic root hashes instead of performing live uploads. Uncomment and configure the real client.upload() calls once you have a funded wallet and active testnet access.
 
 No Deploy Script
-A Hardhat deploy script (scripts/deploy.ts) does not yet exist in the repo. You will need to create one or use Hardhat's console to deploy contracts manually. The MockZKVerifier must be deployed first to satisfy the AgentRegistry constructor.
+A Hardhat deploy script (scripts/deploy.ts) does not yet exist in the repo. You will need to create one or use Hardhat's console to deploy contracts manually. The MockZKVerifier (or real Groth16Verifier) must be deployed first to satisfy the AgentRegistry constructor.
 
-SP1 ELF Not Committed
-The compiled RISC-V ELF binary (zk-engine/program/elf/) is gitignored. Any contributor must run cargo prove build inside program/ before the script/ crate will compile.
+ZK Build Artifacts Not Committed
+The zk-engine/build/ directory (compiled circuit, zkeys, WASM) is gitignored. Every contributor must run `npm run build:circuit` and `npm run setup` inside zk-engine/ before generating proofs.
 
 Mock Agent State in UI
 Mission Control preloads three fictional agents via hardcoded state. The Spawn Agent button adds more via a setTimeout simulation, not a real contract call. Wire up wagmi to make it live.
@@ -266,10 +259,10 @@ Mission Control preloads three fictional agents via hardcoded state. The Spawn A
 
 Troubleshooting
 
-cargo prove build fails with missing target
-Run sp1up to reinstall the SP1 toolchain and ensure the riscv32im-succinct-zkvm target is registered. Then try again.
-sp1up
-rustup target add riscv32im-unknown-none-elf
+build:circuit fails with circom not found
+Install the circom compiler globally:
+npm install -g circom@latest
+Or download the binary from https://github.com/iden3/circom/releases
 
 Hardhat compilation errors
 Make sure your Node.js version is >=20. Run node --version to check. Also ensure you ran npm install inside contracts/ not in the root.
@@ -287,7 +280,8 @@ Links
 GitHub Repo	https://github.com/barneybo18/OGsovergienkey
 0G Explorer	https://explorer.testnet.0g.ai/
 0G Docs	https://docs.0g.ai/
-SP1 Docs	https://docs.succinct.xyz/
+snarkjs	https://github.com/iden3/snarkjs
+circom Docs	https://docs.circom.io/
 License	MIT
 
 

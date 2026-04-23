@@ -15,9 +15,10 @@ contracts/cache/
 contracts/typechain-types/
 contracts/dist/
 
-# Rust / ZK Engine
-zk-engine/target/
-zk-engine/program/elf/
+# ZK Engine (snarkjs / circom)
+zk-engine/build/
+zk-engine/dist/
+zk-engine/node_modules/
 
 # AI Orchestrator
 ai-orchestrator/dist/

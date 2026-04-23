@@ -42,9 +42,9 @@ async function runAgentSimulation() {
     // PHASE 3: ZK & SETTLEMENT PREP
     // ----------------------------------------------------
     console.log(">> PREPARING SETTLEMENT:");
-    console.log("1. The raw intent data is sent to the RISC Zero / SP1 Prover.");
-    console.log("2. The output ZK Receipt + the 0G DA Root Hash are aggregated.");
-    console.log(`3. MPC Nodes verify ZK Proof -> decrypt shard -> sign transaction!`);
+    console.log("1. The raw intent data is sent to the snarkjs Groth16 Prover.");
+    console.log("2. The output Groth16 Proof + the 0G DA Root Hash are aggregated.");
+    console.log(`3. MPC Nodes verify ZK Proof on-chain -> decrypt shard -> sign transaction!`);
     console.log("==================================================");
 }
 

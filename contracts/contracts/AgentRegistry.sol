@@ -20,7 +20,7 @@ contract AgentRegistry {
     uint256 public nextAgentId;
     mapping(uint256 => Agent) public agents;
     
-    // Reference to the Zero Knowledge Verifier Contract
+    // Reference to the Zero Knowledge Verifier Contract (Groth16)
     IZKVerifier public verifier;
 
     event AgentRegistered(uint256 indexed agentId, address indexed owner, string pubKey, string constitutionHash);
@@ -61,19 +61,32 @@ contract AgentRegistry {
     }
 
     /**
-     * @dev Logs an agent intent. The system requires a valid ZK proof confirming
-     * that the intent adheres to the current constitution.
+     * @dev Logs an agent intent. Requires a valid Groth16 ZK proof confirming
+     *      that the intent adheres to the current constitution.
+     *
+     * @param agentId      The agent submitting the intent
      * @param intentDataId A reference ID to the raw intent data stored on 0G DA
+     * @param _pA          Groth16 proof point A
+     * @param _pB          Groth16 proof point B
+     * @param _pC          Groth16 proof point C
+     * @param _pubSignals  Public signals: [intentAmount, targetAddress, assetId, valid]
      */
-    function logIntent(uint256 agentId, string memory intentDataId, uint256[] memory pubInputs, bytes memory zkProof) external {
+    function logIntent(
+        uint256 agentId,
+        string memory intentDataId,
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint[4] calldata _pubSignals
+    ) external {
         require(agents[agentId].isActive, "Agent is inactive");
         
-        // 1. Send proof into the Verifier contract
-        bool isValid = verifier.verify(pubInputs, zkProof);
+        // 1. Verify the Groth16 proof on-chain
+        bool isValid = verifier.verifyProof(_pA, _pB, _pC, _pubSignals);
         require(isValid, "ZK Proof is invalid");
 
         // 2. If valid, log the intent to the registry memory 
-        // Note: Actual intent execution happen natively via MPC signing, 
+        // Note: Actual intent execution happens natively via MPC signing, 
         // This transaction serves as the verifiable log entry on the 0G Chain.
         emit IntentLogged(agentId, intentDataId);
     }
