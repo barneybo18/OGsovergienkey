@@ -1,4 +1,6 @@
-import { Indexer, MemData } from "@0glabs/0g-ts-sdk";
+// UPDATED: @0gfoundation/0g-ts-sdk is the Galileo-era SDK.
+// @0glabs/0g-ts-sdk was the old Newton SDK — removed.
+import { Indexer, MemData } from "@0gfoundation/0g-ts-sdk";
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
 
@@ -21,8 +23,8 @@ export class ZeroGService {
         if (!process.env.RPC_ENDPOINT) throw new Error("RPC_ENDPOINT is not set in .env");
 
         this.rpcEndpoint = process.env.RPC_ENDPOINT;
-        const storageNodeUrl = process.env.STORAGE_NODE_URL || "https://storage-testnet-rpc.0g.ai";
-        const indexerUrl = process.env.INDEXER_URL || "https://indexer-storage-testnet-standard.0g.ai";
+        // NOTE: Default must be the Galileo turbo indexer — Newton 'standard' indexer is dead
+        const indexerUrl = process.env.INDEXER_URL || "https://indexer-storage-testnet-turbo.0g.ai";
         const privateKey = process.env.PRIVATE_KEY;
 
         this.provider = new ethers.JsonRpcProvider(this.rpcEndpoint);
@@ -37,33 +39,51 @@ export class ZeroGService {
      */
     async uploadEncryptedMPCShard(shardId: string, encryptedData: string): Promise<string> {
         console.log(`[0G-Storage] Preparing to upload MPC Shard: ${shardId}`);
-        const data = JSON.stringify({ shardId, encryptedData, type: "MPC_SHARD" });
-        const buffer = Buffer.from(data, "utf-8");
-        
+
+        // Pad payload to ensure it exceeds the Flow contract minimum byte threshold.
+        // Raw shard was ~85 bytes — Flow contract requires a minimum viable sector size.
+        const payload = {
+            shardId,
+            encryptedData,
+            type: "MPC_SHARD",
+            _meta: {
+                version: "1.0",
+                network: "0G-Galileo-Testnet",
+                chainId: 16602,
+                timestamp: Date.now(),
+                agent: "SovereignAgent",
+                _pad: "0".repeat(512),
+            }
+        };
+        const buffer = Buffer.from(JSON.stringify(payload), "utf-8");
+
         try {
             const file = new MemData(buffer);
             const [tree, treeErr] = await file.merkleTree();
-            if (treeErr !== null) throw new Error(`Merkle tree error: ${treeErr}`);
-            
+            if (treeErr !== null || !tree) throw new Error(`Merkle tree error: ${treeErr}`);
+            const rootHash = tree.rootHash();
+            if (!rootHash) throw new Error("Root hash is null");
 
-            // Perform real upload with retries for testnet stability
-            let tx = null;
+            let tx: any | null = null;
             let uploadErr = null;
             for (let i = 0; i < 3; i++) {
                 console.log(`[0G-Storage] Upload attempt ${i + 1}...`);
+                // Official Galileo SDK signature: upload(file, rpcUrl, signer)
                 const [resultTx, resultErr] = await this.indexer.upload(file, this.rpcEndpoint, this.wallet);
                 if (resultErr === null) {
                     tx = resultTx;
                     break;
                 }
                 uploadErr = resultErr;
-                console.warn(`[0G-Storage] Upload failed: ${uploadErr}. Retrying in 5s...`);
+                const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+                console.warn(`[0G-Storage] Upload failed (attempt ${i+1}/3): ${errMsg}. Retrying in 5s...`);
                 await sleep(5000);
             }
-            
+
             if (uploadErr !== null && tx === null) throw new Error(`Upload error after 3 retries: ${uploadErr}`);
 
-            console.log(`[0G-Storage] 🔓 MPC Shard pinned to 0G. Transaction: ${tx}`);
+            const txHash = tx?.txHash ?? tx;
+            console.log(`[0G-Storage] 🔐 MPC Shard uploaded! Root: ${rootHash}, TX: ${txHash}`);
             return rootHash;
         } catch (error) {
             console.error("Failed to upload shard to 0G", error);
@@ -76,17 +96,29 @@ export class ZeroGService {
      */
     async logIntentMemory(intent: any): Promise<string> {
         console.log(`[0G-DA] Logging AI intent to 0G Data Availability...`);
-        const data = JSON.stringify({ ...intent, type: "AI_INTENT_LOG" });
-        const buffer = Buffer.from(data, "utf-8");
-        
+
+        // Pad payload — same reason as shard: Flow contract minimum byte threshold
+        const payload = {
+            ...intent,
+            type: "AI_INTENT_LOG",
+            _meta: {
+                version: "1.0",
+                network: "0G-Galileo-Testnet",
+                chainId: 16602,
+                timestamp: Date.now(),
+                _pad: "0".repeat(512),
+            }
+        };
+        const buffer = Buffer.from(JSON.stringify(payload), "utf-8");
+
         try {
             const file = new MemData(buffer);
             const [tree, treeErr] = await file.merkleTree();
-            if (treeErr !== null) throw new Error(`Merkle tree error: ${treeErr}`);
+            if (treeErr !== null || !tree) throw new Error(`Merkle tree error: ${treeErr}`);
+            const rootHash = tree.rootHash();
+            if (!rootHash) throw new Error("Root hash is null");
 
-
-            // In 0G, DA is often anchored via the same storage layer for high-throughput
-            let tx = null;
+            let tx: any | null = null;
             let uploadErr = null;
             for (let i = 0; i < 3; i++) {
                 console.log(`[0G-DA] DA Log attempt ${i + 1}...`);
@@ -96,13 +128,15 @@ export class ZeroGService {
                     break;
                 }
                 uploadErr = resultErr;
-                console.warn(`[0G-DA] DA Log failed: ${uploadErr}. Retrying in 5s...`);
+                const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+                console.warn(`[0G-DA] DA Log failed (attempt ${i+1}/3): ${errMsg}. Retrying in 5s...`);
                 await sleep(5000);
             }
-            
+
             if (uploadErr !== null && tx === null) throw new Error(`DA Upload error after 3 retries: ${uploadErr}`);
 
-            console.log(`[0G-DA] 🧠 AI Intent permanently stored on 0G DA. Root Hash: ${rootHash}`);
+            const txHash = tx?.txHash ?? tx;
+            console.log(`[0G-DA] 🧠 AI Intent permanently stored on 0G DA. Root Hash: ${rootHash}, TX: ${txHash}`);
             return rootHash;
         } catch (error) {
             console.error("Failed to log intent to 0G", error);

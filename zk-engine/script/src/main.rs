@@ -1,7 +1,7 @@
 //! The Sovereign Agent Prover Script
 //! This script acts on behalf of the AI to prove its intent lies within the Constitution Rules.
 
-use sp1_sdk::{ProverClient, SP1Stdin};
+use sp1_sdk::{Elf, Prover, ProvingKey, ProverClient, SP1Stdin};
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -31,12 +31,13 @@ struct ProverOutput {
     pub target: Vec<u8>,
 }
 
-fn main() {
-    // 1. Setup the client and ZK environment
-    let client = ProverClient::from_env();
+#[tokio::main]
+async fn main() {
+    // 1. Setup the client — from_env() is async in SP1 v6.x
+    let client = ProverClient::from_env().await;
     let mut stdin = SP1Stdin::new();
 
-    // 2. Load inputs from JSON (Defaulting to input.json)
+    // 2. Load inputs from JSON
     println!("Loading inputs from zk_input.json...");
     let input_data = fs::read_to_string("zk_input.json").expect("Unable to read zk_input.json");
     let input_json: serde_json::Value = serde_json::from_str(&input_data).expect("JSON was not well-formatted");
@@ -49,24 +50,41 @@ fn main() {
     stdin.write(&intent);
 
     println!("Starting SP1 Prover for Sovereign Agent intent...");
-    
-    // 4. Generate the Proof
-    let (pk, vk) = client.setup(SOVEREIGN_AGENT_ELF);
-    let mut proof = client.prove(&pk, &stdin).run().expect("Proving failed");
+
+    // 4. Setup proving key — SP1 v6.x: setup(Elf::Static(...)) is async,
+    //    returns a single ProvingKey (vk is accessed via pk.verifying_key())
+    let pk = client
+        .setup(Elf::Static(SOVEREIGN_AGENT_ELF))
+        .await
+        .expect("Setup failed");
+    let vk = pk.verifying_key().clone();
+
+    // 5. Generate the proof — EnvProveRequest implements IntoFuture, so .await directly
+    let mut proof = client
+        .prove(&pk, stdin)
+        .await
+        .expect("Proving failed");
 
     println!("✅ Proof generated successfully! The Agent followed the Constitution.");
 
-    // 5. Extract the public journal
+    // 6. Extract the public journal
     let proven_amount = proof.public_values.read::<u64>();
     let proven_address = proof.public_values.read::<Vec<u8>>();
-    
-    println!("Public Journal reads amount: {}", proven_amount);
-    
-    // 6. Verification check
-    client.verify(&proof, &vk).expect("Verification failed");
-    println!("✅ Verification successful.");
 
-    // 7. Save output to JSON for Orchestrator
+    println!("Public Journal reads amount: {}", proven_amount);
+
+    // 7. Verification — skip in mock mode (mock proofs have no cryptographic content)
+    //    SP1_PROVER=mock is used for pipeline testing without real ZK computation.
+    let prover_mode = std::env::var("SP1_PROVER").unwrap_or_else(|_| "cpu".to_string());
+    if prover_mode != "mock" {
+        client.verify(&proof, &vk, None).expect("Verification failed");
+        println!("✅ Verification successful.");
+    } else {
+        println!("⚠️  Mock mode: skipping cryptographic verification (proof has no real content).");
+        println!("✅ Pipeline validated successfully in mock mode.");
+    }
+
+    // 8. Save output to JSON for Orchestrator
     let proof_bytes = bincode::serialize(&proof).expect("Failed to serialize proof");
     let output = ProverOutput {
         proof: hex::encode(&proof_bytes),

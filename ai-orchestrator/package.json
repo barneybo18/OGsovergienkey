@@ -8,13 +8,13 @@
     "start": "ts-node src/agent.ts"
   },
   "dependencies": {
-    "@0glabs/0g-ts-sdk": "^0.2.1",
-    "ethers": "^6.11.1",
-    "dotenv": "^16.4.5"
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.11.1"
   },
   "devDependencies": {
-    "typescript": "^5.4.3",
+    "@types/node": "^20.11.30",
     "ts-node": "^10.9.2",
-    "@types/node": "^20.11.30"
+    "typescript": "^5.4.3"
   }
 }

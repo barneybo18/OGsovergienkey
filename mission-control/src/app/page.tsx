@@ -55,7 +55,7 @@ export default function MissionControl() {
 
   const handleSpawn = async () => {
     setIsSpawning(true);
-    setRuntimeLogs(["Initializing Peer-to-Peer Orchestrator...", "Contacting 0G Newton Testnet..."]);
+    setRuntimeLogs(["Initializing Peer-to-Peer Orchestrator...", "Contacting 0G Galileo Testnet..."]);
     
     try {
       const response = await fetch("/api/spawn-agent", {
@@ -101,8 +101,14 @@ export default function MissionControl() {
   return (
     <main className="min-h-screen p-8 lg:p-24 relative overflow-hidden bg-[#020408]">
       {/* Background ambient glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-brand-cyan/10 blur-[120px] rounded-full point-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-brand-purple/10 blur-[120px] rounded-full point-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-brand-cyan/20 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-brand-purple/20 blur-[120px] rounded-full pointer-events-none" />
+      
+      {/* Digital Soul Grid Pattern */}
+      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+      <div className="absolute inset-0 z-0 opacity-[0.02] pointer-events-none" 
+           style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '200px 200px' }} />
 
       <div className="max-w-7xl mx-auto relative z-10">
         
@@ -114,7 +120,7 @@ export default function MissionControl() {
               animate={{ opacity: 1, scale: 1 }}
               className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-cyan bg-brand-cyan/10 text-brand-cyan text-xs font-bold uppercase tracking-widest mb-4"
             >
-              <Activity className="w-4 h-4" /> 0G Newton Testnet Active
+              <Activity className="w-4 h-4" /> 0G Galileo Testnet Active
             </motion.div>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-4 text-white">
               Sovereign <span className="text-gradient">Agents</span>
