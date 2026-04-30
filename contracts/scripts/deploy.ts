@@ -1,4 +1,6 @@
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Deploy Script for Sovereign Agent Keys
@@ -38,6 +40,16 @@ async function main() {
   await registry.waitForDeployment();
   const registryAddress = await registry.getAddress();
   console.log(`✅ AgentRegistry deployed at : ${registryAddress}\n`);
+
+  // ── Step 3: Save addresses for ai-orchestrator and mission-control
+  const addresses = {
+    MockZKVerifier: verifierAddress,
+    AgentRegistry: registryAddress,
+  };
+
+  const configPath = path.join(__dirname, "..", "addresses.json");
+  fs.writeFileSync(configPath, JSON.stringify(addresses, null, 2));
+  console.log(`✅ Addresses saved to ${configPath}`);
 
   // ── Summary ───────────────────────────────────────────────────
   console.log("==========================================================");

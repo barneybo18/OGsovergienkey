@@ -14,10 +14,11 @@ interface AgentCardProps {
   id: string;
   rootHash: string;
   zkStatus: "Verified" | "Pending" | "Failed";
+  txHash?: string;
   className?: string;
 }
 
-export function AgentCard({ name, id, rootHash, zkStatus, className }: AgentCardProps) {
+export function AgentCard({ name, id, rootHash, zkStatus, txHash, className }: AgentCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -49,14 +50,28 @@ export function AgentCard({ name, id, rootHash, zkStatus, className }: AgentCard
       </div>
 
       {/* Body */}
-      <div className="flex flex-col gap-2 pt-2">
-        <span className="text-xs text-white/50 uppercase tracking-wider font-semibold">Latest Memory Log (0G DA)</span>
-        <div className="bg-black/40 p-3 rounded-lg border border-white/5 flex items-center justify-between group-hover:border-[var(--color-brand-cyan)]/30 transition-colors">
-          <span className="text-sm font-mono text-white/80 truncate w-4/5">{rootHash}</span>
-          <button className="text-white/40 hover:text-white transition-colors">
-            <Copy className="w-4 h-4" />
-          </button>
+      <div className="flex flex-col gap-4 pt-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-white/50 uppercase tracking-wider font-semibold">Latest Memory Log (0G DA)</span>
+          <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex items-center justify-between group-hover:border-[var(--color-brand-cyan)]/30 transition-colors">
+            <span className="text-xs font-mono text-white/80 truncate w-4/5">{rootHash}</span>
+            <button className="text-white/40 hover:text-white transition-colors">
+              <Copy className="w-3 h-3" />
+            </button>
+          </div>
         </div>
+
+        {txHash && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-white/50 uppercase tracking-wider font-semibold">Testnet TX Hash</span>
+            <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex items-center justify-between hover:border-brand-purple/30 transition-colors">
+              <span className="text-xs font-mono text-brand-purple/90 truncate w-4/5">{txHash}</span>
+              <button className="text-white/40 hover:text-white transition-colors">
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
