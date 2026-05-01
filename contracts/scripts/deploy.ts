@@ -5,23 +5,31 @@ import * as path from "path";
 async function main() {
   console.log("Preparing to deploy Sovereign Agent Keys contracts...");
 
-  // 1. Deploy Mock ZK Verifier
-  const MockZKVerifier = await ethers.getContractFactory("MockZKVerifier");
-  const verifier = await MockZKVerifier.deploy();
-  await verifier.waitForDeployment();
-  const verifierAddress = await verifier.getAddress();
-  console.log(`✅ MockZKVerifier deployed to: ${verifierAddress}`);
+  // 1. Deploy Real ZK Verifier (Groth16 from snarkjs)
+  const Verifier = await ethers.getContractFactory("Verifier");
+  const realVerifier = await Verifier.deploy();
+  await realVerifier.waitForDeployment();
+  const realVerifierAddress = await realVerifier.getAddress();
+  console.log(`✅ Verifier (Real) deployed to: ${realVerifierAddress}`);
 
-  // 2. Deploy AgentRegistry
+  // 2. Deploy Mock ZK Verifier (Legacy support)
+  const MockZKVerifier = await ethers.getContractFactory("MockZKVerifier");
+  const mockVerifier = await MockZKVerifier.deploy();
+  await mockVerifier.waitForDeployment();
+  const mockVerifierAddress = await mockVerifier.getAddress();
+  console.log(`✅ MockZKVerifier deployed to: ${mockVerifierAddress}`);
+
+  // 3. Deploy AgentRegistry (linked to Real Verifier)
   const AgentRegistry = await ethers.getContractFactory("AgentRegistry");
-  const registry = await AgentRegistry.deploy(verifierAddress);
+  const registry = await AgentRegistry.deploy(realVerifierAddress);
   await registry.waitForDeployment();
   const registryAddress = await registry.getAddress();
   console.log(`✅ AgentRegistry deployed to: ${registryAddress}`);
 
-  // 3. Save addresses for ai-orchestrator and mission-control
+  // 4. Save addresses for ai-orchestrator and mission-control
   const addresses = {
-    MockZKVerifier: verifierAddress,
+    Verifier: realVerifierAddress,
+    MockZKVerifier: mockVerifierAddress,
     AgentRegistry: registryAddress,
   };
 

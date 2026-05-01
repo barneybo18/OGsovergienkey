@@ -35,3 +35,26 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Global Button Interactive Styles */
+button, 
+[role="button"],
+.btn-hover {
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:hover,
+[role="button"]:hover,
+.btn-hover:hover {
+  filter: brightness(1.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px -5px rgba(178, 31, 255, 0.3);
+}
+
+button:active,
+[role="button"]:active,
+.btn-hover:active {
+  transform: translateY(0);
+}
+
