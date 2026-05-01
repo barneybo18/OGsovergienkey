@@ -2,18 +2,19 @@
 pragma solidity ^0.8.24;
 
 import "./interfaces/IZKVerifier.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title AgentRegistry
  * @dev This contract registers new AI agents onto the 0G Chain. 
  * It stores mapping to their MPC public keys and the 0G Storage hashes of their Constitution.
  */
-contract AgentRegistry {
+contract AgentRegistry is Ownable {
 
     struct Agent {
         address owner;
-        string pubKey; // The MPC aggregate public key
-        string constitutionHash; // IPFS / 0G Storage reference to the agent's rules
+        bytes32 pubKeyHash; // The MPC aggregate public key
+        bytes32 constitutionHash; // IPFS / 0G Storage reference to the agent's rules
         bool isActive;
     }
 
@@ -23,24 +24,36 @@ contract AgentRegistry {
     // Reference to the Zero Knowledge Verifier Contract
     IZKVerifier public verifier;
 
-    event AgentRegistered(uint256 indexed agentId, address indexed owner, string pubKey, string constitutionHash);
-    event ConstitutionUpdated(uint256 indexed agentId, string newConstitutionHash);
-    event IntentLogged(uint256 indexed agentId, string intentDataId);
+    mapping(address => bool) public authorizedOperators;
 
-    constructor(address _verifierAddress) {
+    event AgentRegistered(uint256 indexed agentId, address indexed owner, bytes32 pubKeyHash, bytes32 constitutionHash);
+    event ConstitutionUpdated(uint256 indexed agentId, bytes32 newConstitutionHash);
+    event IntentLogged(uint256 indexed agentId, string intentDataId);
+    event AgentDeactivated(uint256 indexed agentId);
+
+    modifier onlyAuthorized() {
+        require(authorizedOperators[msg.sender] || msg.sender == owner(), "Not authorized");
+        _;
+    }
+
+    constructor(address _verifierAddress) Ownable(msg.sender) {
         verifier = IZKVerifier(_verifierAddress);
         nextAgentId = 1;
+    }
+
+    function setOperator(address op, bool status) external onlyOwner {
+        authorizedOperators[op] = status;
     }
 
     /**
      * @dev Mint a new agent. The pubKey should be the generated MPC threshold key.
      */
-    function registerAgent(string memory pubKey, string memory constitutionHash) external returns (uint256) {
+    function registerAgent(bytes32 pubKey, bytes32 constitutionHash) external onlyAuthorized returns (uint256) {
         uint256 agentId = nextAgentId++;
         
         agents[agentId] = Agent({
             owner: msg.sender,
-            pubKey: pubKey,
+            pubKeyHash: pubKey,
             constitutionHash: constitutionHash,
             isActive: true
         });
@@ -52,12 +65,22 @@ contract AgentRegistry {
     /**
      * @dev Allows the owner to update the Agent's constitution (risk rules).
      */
-    function updateConstitution(uint256 agentId, string memory newConstitutionHash) external {
+    function updateConstitution(uint256 agentId, bytes32 newConstitutionHash) external {
         require(agents[agentId].owner == msg.sender, "Not the agent owner");
         require(agents[agentId].isActive, "Agent is inactive");
 
         agents[agentId].constitutionHash = newConstitutionHash;
         emit ConstitutionUpdated(agentId, newConstitutionHash);
+    }
+
+    function deactivateAgent(uint256 agentId) external {
+        require(agents[agentId].owner == msg.sender, "Not the agent owner");
+        agents[agentId].isActive = false;
+        emit AgentDeactivated(agentId);
+    }
+
+    function getAgent(uint256 agentId) external view returns (Agent memory) {
+        return agents[agentId];
     }
 
     /**
@@ -66,6 +89,7 @@ contract AgentRegistry {
      * @param intentDataId A reference ID to the raw intent data stored on 0G DA
      */
     function logIntent(uint256 agentId, string memory intentDataId, uint256[] memory pubInputs, bytes memory zkProof) external {
+        require(agents[agentId].owner == msg.sender, "Not the agent owner");
         require(agents[agentId].isActive, "Agent is inactive");
         
         // 1. Send proof into the Verifier contract

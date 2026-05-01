@@ -34,6 +34,32 @@ export class ZeroGService {
         console.log(`[0G-Service] Initialized with RPC: ${this.rpcEndpoint}, Indexer: ${indexerUrl}`);
     }
 
+    private async uploadWithRetry(file: any, label: string): Promise<string> {
+        const [tree, treeErr] = await file.merkleTree();
+        if (treeErr !== null || !tree) throw new Error(`Merkle tree error: ${treeErr}`);
+        const rootHash = tree.rootHash();
+        if (!rootHash) throw new Error("Root hash is null");
+        
+        let tx: any = null;
+        let lastErr = null;
+        for (let i = 0; i < 3; i++) {
+          console.log(`[${label}] Upload attempt ${i + 1}...`);
+          const [resultTx, resultErr] = await this.indexer.upload(file, this.rpcEndpoint, this.wallet);
+          if (resultErr === null) { 
+            tx = resultTx; 
+            break; 
+          }
+          lastErr = resultErr;
+          const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+          console.warn(`[${label}] Failed attempt ${i+1}/3: ${msg}. Retrying in 5s...`);
+          await sleep(5000);
+        }
+        
+        if (!tx) throw new Error(`Upload failed after 3 retries: ${lastErr}`);
+        console.log(`[${label}] ✓ Uploaded. Root: ${rootHash}, TX: ${tx?.txHash ?? tx}`);
+        return rootHash;
+    }
+
     /**
      * Upload an encoded, encrypted MPC key shard to 0G.
      */
@@ -41,7 +67,6 @@ export class ZeroGService {
         console.log(`[0G-Storage] Preparing to upload MPC Shard: ${shardId}`);
 
         // Pad payload to ensure it exceeds the Flow contract minimum byte threshold.
-        // Raw shard was ~85 bytes — Flow contract requires a minimum viable sector size.
         const payload = {
             shardId,
             encryptedData,
@@ -59,32 +84,7 @@ export class ZeroGService {
 
         try {
             const file = new MemData(buffer);
-            const [tree, treeErr] = await file.merkleTree();
-            if (treeErr !== null || !tree) throw new Error(`Merkle tree error: ${treeErr}`);
-            const rootHash = tree.rootHash();
-            if (!rootHash) throw new Error("Root hash is null");
-
-            let tx: any | null = null;
-            let uploadErr = null;
-            for (let i = 0; i < 3; i++) {
-                console.log(`[0G-Storage] Upload attempt ${i + 1}...`);
-                // Official Galileo SDK signature: upload(file, rpcUrl, signer)
-                const [resultTx, resultErr] = await this.indexer.upload(file, this.rpcEndpoint, this.wallet);
-                if (resultErr === null) {
-                    tx = resultTx;
-                    break;
-                }
-                uploadErr = resultErr;
-                const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
-                console.warn(`[0G-Storage] Upload failed (attempt ${i+1}/3): ${errMsg}. Retrying in 5s...`);
-                await sleep(5000);
-            }
-
-            if (uploadErr !== null && tx === null) throw new Error(`Upload error after 3 retries: ${uploadErr}`);
-
-            const txHash = tx?.txHash ?? tx;
-            console.log(`[0G-Storage] 🔐 MPC Shard uploaded! Root: ${rootHash}, TX: ${txHash}`);
-            return rootHash;
+            return await this.uploadWithRetry(file, '0G-Storage');
         } catch (error) {
             console.error("Failed to upload shard to 0G", error);
             throw error;
@@ -113,31 +113,7 @@ export class ZeroGService {
 
         try {
             const file = new MemData(buffer);
-            const [tree, treeErr] = await file.merkleTree();
-            if (treeErr !== null || !tree) throw new Error(`Merkle tree error: ${treeErr}`);
-            const rootHash = tree.rootHash();
-            if (!rootHash) throw new Error("Root hash is null");
-
-            let tx: any | null = null;
-            let uploadErr = null;
-            for (let i = 0; i < 3; i++) {
-                console.log(`[0G-DA] DA Log attempt ${i + 1}...`);
-                const [resultTx, resultErr] = await this.indexer.upload(file, this.rpcEndpoint, this.wallet);
-                if (resultErr === null) {
-                    tx = resultTx;
-                    break;
-                }
-                uploadErr = resultErr;
-                const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
-                console.warn(`[0G-DA] DA Log failed (attempt ${i+1}/3): ${errMsg}. Retrying in 5s...`);
-                await sleep(5000);
-            }
-
-            if (uploadErr !== null && tx === null) throw new Error(`DA Upload error after 3 retries: ${uploadErr}`);
-
-            const txHash = tx?.txHash ?? tx;
-            console.log(`[0G-DA] 🧠 AI Intent permanently stored on 0G DA. Root Hash: ${rootHash}, TX: ${txHash}`);
-            return rootHash;
+            return await this.uploadWithRetry(file, '0G-DA');
         } catch (error) {
             console.error("Failed to log intent to 0G", error);
             throw error;

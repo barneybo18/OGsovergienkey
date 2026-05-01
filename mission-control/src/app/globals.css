@@ -1,60 +1,83 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
 
 @theme {
-  --color-brand-cyan: #00F0FF;
-  --color-brand-purple: #B21FFF;
-  --color-brand-dark: #0A0A0E;
-  --color-brand-card: rgba(18, 18, 24, 0.6);
-  --color-brand-border: rgba(255, 255, 255, 0.08);
+  --color-brand-cyan: #00FFD1;
+  --color-brand-cyan2: #00C4A3;
+  --color-brand-purple: #9B6DFF;
+  --color-brand-amber: #FFB830;
+  --color-brand-red: #FF4D6A;
+  --color-brand-dark: #03050A;
+  --color-brand-card: rgba(7, 12, 20, 0.95);
+  --color-brand-border: rgba(0, 255, 209, 0.1);
+  --color-brand-border2: rgba(255, 255, 255, 0.06);
+  --font-mono: 'Space Mono', monospace;
+  --font-display: 'Syne', sans-serif;
 }
 
 :root {
-  --background: #050508;
-  --foreground: #EDEDED;
+  --background: #03050A;
+  --foreground: rgba(255,255,255,0.9);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Syne', -apple-system, sans-serif;
   overflow-x: hidden;
 }
 
-/* Glassmorphism utility classes */
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
 .glass-panel {
   background: var(--color-brand-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-brand-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-brand-border2);
 }
 
 .text-gradient {
-  background: linear-gradient(90deg, var(--color-brand-cyan), var(--color-brand-purple));
+  background: linear-gradient(135deg, var(--color-brand-cyan), var(--color-brand-purple));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Global Button Interactive Styles */
-button, 
-[role="button"],
-.btn-hover {
+.font-mono { font-family: 'Space Mono', monospace !important; }
+.font-display { font-family: 'Syne', sans-serif !important; }
+
+button, [role="button"] {
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
 }
 
-button:hover,
-[role="button"]:hover,
-.btn-hover:hover {
-  filter: brightness(1.15);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px -5px rgba(178, 31, 255, 0.3);
+/* Corner bracket decoration utility */
+.bracket-corners {
+  position: relative;
 }
-
-button:active,
-[role="button"]:active,
-.btn-hover:active {
-  transform: translateY(0);
+.bracket-corners::before,
+.bracket-corners::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-brand-cyan);
+  border-style: solid;
+  opacity: 0;
+  transition: opacity 0.3s;
 }
-
+.bracket-corners::before { top: 0; left: 0; border-width: 1px 0 0 1px; }
+.bracket-corners::after  { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
+.bracket-corners:hover::before,
+.bracket-corners:hover::after { opacity: 1; }

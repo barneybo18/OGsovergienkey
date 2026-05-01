@@ -64,11 +64,11 @@ Open [http://localhost:3001](http://localhost:3001) to start spawning agents!
 
 | Stage | Status | Notes |
 |---|---|---|
-| MPC Shard → 0G Storage | ✅ Real | Turbo indexer, Flow contract linked |
+| MPC Shard → 0G Storage | ✅ Real | Shamir 2-of-3 split, encrypted, pinned to 0G Turbo indexer |
 | Agent Registration on-chain | ✅ Real | AgentRegistry contract on Chain 16602 |
 | AI Intent → 0G DA | ✅ Real | Real Galileo DA nodes |
 | Final Settlement on-chain | ✅ Real | `AgentRegistry.logIntent()` TX confirmed |
-| ZK Proof (Groth16) | ✅ Real | Verifiable on-chain via snarkjs Verifier.sol |
+| ZK Proof (Groth16) | ✅ Real | circom 2.0 circuit, snarkjs Groth16, deployed Verifier.sol |
 
 ---
 
@@ -111,8 +111,8 @@ OGsovergienkey/
 
 | Contract | Address | Explorer |
 |---|---|---|
-| AgentRegistry | [`0x93Fb17c51fC9513818042E8F58A70DDcfa98aDdA`](https://chainscan-galileo.0g.ai/address/0x93Fb17c51fC9513818042E8F58A70DDcfa98aDdA) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x93Fb17c51fC9513818042E8F58A70DDcfa98aDdA) |
-| Verifier (Groth16) | `0x0C4a38E0BfaF3ABe5159423A15FB945fFAcabE92` | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x0C4a38E0BfaF3ABe5159423A15FB945fFAcabE92) |
+| AgentRegistry | [`0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989`](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) |
+| Verifier (Groth16) | [`0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9`](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) |
 
 ---
 
@@ -121,6 +121,9 @@ OGsovergienkey/
 | Resource | URL |
 |---|---|
 | GitHub Repo | [barneybo18/OGsovergienkey](https://github.com/barneybo18/OGsovergienkey) |
+| Demo Video | [YouTube — 3 min walkthrough](YOUR_YOUTUBE_LINK) |
+| X Post | [@barneybo18 on X](YOUR_X_POST_LINK) |
+| Live Dashboard | [mission-control.vercel.app](YOUR_VERCEL_URL) |
 | Galileo Chain Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) |
 | 0G Docs | [docs.0g.ai](https://docs.0g.ai) |
 | snarkjs Docs | [github.com/iden3/snarkjs](https://github.com/iden3/snarkjs) |

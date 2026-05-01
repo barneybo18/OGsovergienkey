@@ -18,6 +18,9 @@ contracts/dist/
 # Rust / ZK Engine
 zk-engine/target/
 zk-engine/program/elf/
+*.ptau
+zk-engine/circuits/pot*
+zk-engine/circuits/circuit_0.zkey
 
 # AI Orchestrator
 ai-orchestrator/dist/
@@ -29,6 +32,7 @@ ai-orchestrator/dist/
 .env.test.local
 .env.production.local
 *.env
+mission-control/.env.local
 
 # Logs
 *.log

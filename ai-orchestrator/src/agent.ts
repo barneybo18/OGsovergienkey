@@ -5,6 +5,8 @@ import * as path from "path";
 import { execSync } from "child_process";
 import * as dotenv from "dotenv";
 import { generateProof } from "./prover";
+const sss = require('shamirs-secret-sharing');
+
 
 dotenv.config();
 
@@ -36,9 +38,21 @@ class SovereignAgent {
     async spawn(name: string) {
         console.log(`\n>> [GENESIS] Spawning agent: ${name}`);
         
-        // 1. Simulate MPC DKG and shard generation
-        const mockShardData = `enc_v1_sak_${Math.random().toString(36).substring(7)}`;
+        // 1. Real MPC simulation: generate ephemeral keypair and split with Shamir 2-of-3
+        const ephemeralWallet = ethers.Wallet.createRandom();
+        const secretBytes = Buffer.from(ephemeralWallet.privateKey.slice(2), 'hex');
+        const shares = sss.split(secretBytes, { shares: 3, threshold: 2 });
+        // Store shard 1 on 0G Storage (other shards go to MPC nodes in production)
+        const mockShardData = JSON.stringify({
+          shardIndex: 1,
+          totalShards: 3,
+          threshold: 2,
+          shardHex: shares[0].toString('hex'),
+          agentPubKey: ephemeralWallet.publicKey,
+          timestamp: Date.now()
+        });
         const shardId = `shard-${name.toLowerCase()}-001`;
+        const agentPubKeyHex = ethers.id(ephemeralWallet.publicKey) as `0x${string}`;
         
         // 2. Upload to 0G Storage (Resilient to 503 errors)
         let shardRootHash = "0x-offline";
@@ -50,8 +64,12 @@ class SovereignAgent {
         
         // 3. Register on 0G Chain (Requires RPC to be up)
         console.log(`[Flow] Registering agent on-chain at ${ADDRESSES.AgentRegistry}...`);
-        const pubKey = `sak_pub_${Math.random().toString(36).substring(7)}`; // Mock aggregate pubkey
-        const tx = await this.registry.registerAgent(pubKey, shardRootHash);
+        const pubKey = agentPubKeyHex; // Real ephemeral agent public key hash
+        // Convert constitutionHash string to bytes32
+        const constitutionHashBytes32 = shardRootHash.startsWith('0x')
+          ? shardRootHash.padEnd(66, '0').slice(0, 66)
+          : ('0x' + shardRootHash).padEnd(66, '0').slice(0, 66);
+        const tx = await this.registry.registerAgent(pubKey, constitutionHashBytes32);
         const receipt = await this.waitForReceipt(tx);
         
         // Extract agentId from event
