@@ -111,8 +111,8 @@ OGsovergienkey/
 
 | Contract | Address | Explorer |
 |---|---|---|
-| AgentRegistry | [`0x93Fb17c51fC9513818042E8F58A70DDcfa98aDdA`](https://chainscan-galileo.0g.ai/address/0x93Fb17c51fC9513818042E8F58A70DDcfa98aDdA) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x93Fb17c51fC9513818042E8F58A70DDcfa98aDdA) |
-| Verifier (Groth16) | `0x0C4a38E0BfaF3ABe5159423A15FB945fFAcabE92` | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x0C4a38E0BfaF3ABe5159423A15FB945fFAcabE92) |
+| AgentRegistry | [`0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989`](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) |
+| Verifier (Groth16) | [`0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9`](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) |
 
 ---
 
