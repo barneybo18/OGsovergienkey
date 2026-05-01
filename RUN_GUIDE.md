@@ -22,6 +22,9 @@ STORAGE_NODE_URL=https://storage-testnet-rpc.0g.ai
 
 ## 3. Circuit Compilation
 
+> [!IMPORTANT]
+> **This step is mandatory for real cryptographic enforcement.** Without running this, the system will operate in "Demo Mode" using a placeholder Verifier.
+
 Navigate to the circuits directory and compile the constitution logic:
 
 ```bash

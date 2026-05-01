@@ -68,7 +68,7 @@ Open [http://localhost:3001](http://localhost:3001) to start spawning agents!
 | Agent Registration on-chain | ✅ Real | AgentRegistry contract on Chain 16602 |
 | AI Intent → 0G DA | ✅ Real | Real Galileo DA nodes |
 | Final Settlement on-chain | ✅ Real | `AgentRegistry.logIntent()` TX confirmed |
-| ZK Proof (Groth16) | ✅ Real | Verifiable on-chain via snarkjs Verifier.sol |
+| ZK Proof (Groth16) | ⚙️ Pending | Circuit ready, artifacts pending compile |
 
 ---
 
