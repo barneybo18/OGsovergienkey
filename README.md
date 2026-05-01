@@ -64,11 +64,11 @@ Open [http://localhost:3001](http://localhost:3001) to start spawning agents!
 
 | Stage | Status | Notes |
 |---|---|---|
-| MPC Shard → 0G Storage | ✅ Real | Turbo indexer, Flow contract linked |
+| MPC Shard → 0G Storage | ✅ Real | Shamir 2-of-3 split, encrypted, pinned to 0G Turbo indexer |
 | Agent Registration on-chain | ✅ Real | AgentRegistry contract on Chain 16602 |
 | AI Intent → 0G DA | ✅ Real | Real Galileo DA nodes |
 | Final Settlement on-chain | ✅ Real | `AgentRegistry.logIntent()` TX confirmed |
-| ZK Proof (Groth16) | ⚙️ Pending | Circuit ready, artifacts pending compile |
+| ZK Proof (Groth16) | ✅ Real | circom 2.0 circuit, snarkjs Groth16, deployed Verifier.sol |
 
 ---
 
@@ -121,6 +121,9 @@ OGsovergienkey/
 | Resource | URL |
 |---|---|
 | GitHub Repo | [barneybo18/OGsovergienkey](https://github.com/barneybo18/OGsovergienkey) |
+| Demo Video | [YouTube — 3 min walkthrough](YOUR_YOUTUBE_LINK) |
+| X Post | [@barneybo18 on X](YOUR_X_POST_LINK) |
+| Live Dashboard | [mission-control.vercel.app](YOUR_VERCEL_URL) |
 | Galileo Chain Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) |
 | 0G Docs | [docs.0g.ai](https://docs.0g.ai) |
 | snarkjs Docs | [github.com/iden3/snarkjs](https://github.com/iden3/snarkjs) |
