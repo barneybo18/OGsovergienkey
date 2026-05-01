@@ -32,6 +32,7 @@ ai-orchestrator/dist/
 .env.test.local
 .env.production.local
 *.env
+mission-control/.env.local
 
 # Logs
 *.log

@@ -25,7 +25,7 @@ export function AgentCard({ name, id, rootHash, zkStatus, txHash, className }: A
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       whileHover={{ y: -5 }}
-      className={cn("glass-panel p-6 rounded-2xl flex flex-col gap-4 group cursor-pointer transition-all", className)}
+      className={cn("glass-panel p-6 rounded-2xl flex flex-col gap-4 group cursor-pointer transition-all bracket-corners", className)}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/5 pb-4">
@@ -34,8 +34,8 @@ export function AgentCard({ name, id, rootHash, zkStatus, txHash, className }: A
             <Cpu className="text-[var(--color-brand-cyan)] w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold tracking-wide text-white">{name}</h3>
-            <p className="text-xs text-white/40 uppercase tracking-widest">{id}</p>
+            <h3 className="text-lg font-semibold tracking-wide text-white font-display">{name}</h3>
+            <p className="text-xs text-white/40 uppercase tracking-widest font-mono">{id}</p>
           </div>
         </div>
         <div className={cn(
@@ -55,7 +55,11 @@ export function AgentCard({ name, id, rootHash, zkStatus, txHash, className }: A
           <span className="text-xs text-white/50 uppercase tracking-wider font-semibold">Latest Memory Log (0G DA)</span>
           <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex items-center justify-between group-hover:border-[var(--color-brand-cyan)]/30 transition-colors">
             <span className="text-xs font-mono text-white/80 truncate w-4/5">{rootHash}</span>
-            <button className="text-white/40 hover:text-white transition-colors">
+            <button 
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(rootHash).then(() => alert('Copied!'))}}
+              className="text-white/40 hover:text-white transition-colors"
+              title="Copy root hash"
+            >
               <Copy className="w-3 h-3" />
             </button>
           </div>
@@ -65,8 +69,19 @@ export function AgentCard({ name, id, rootHash, zkStatus, txHash, className }: A
           <div className="flex flex-col gap-1">
             <span className="text-xs text-white/50 uppercase tracking-wider font-semibold">Testnet TX Hash</span>
             <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex items-center justify-between hover:border-brand-purple/30 transition-colors">
-              <span className="text-xs font-mono text-brand-purple/90 truncate w-4/5">{txHash}</span>
-              <button className="text-white/40 hover:text-white transition-colors">
+              <a 
+                href={`https://chainscan-galileo.0g.ai/tx/${txHash}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-xs font-mono text-brand-purple/90 truncate w-4/5 hover:underline"
+              >
+                {txHash}
+              </a>
+              <button 
+                onClick={(e) => { e.stopPropagation(); txHash && navigator.clipboard.writeText(txHash).then(() => alert('Copied!'))}}
+                className="text-white/40 hover:text-white transition-colors"
+                title="Copy TX hash"
+              >
                 <Copy className="w-3 h-3" />
               </button>
             </div>

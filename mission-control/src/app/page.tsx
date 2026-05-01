@@ -36,6 +36,8 @@ export default function MissionControl() {
   // Real-time network and performance state
   const [networkData, setNetworkData] = useState<NetworkStatus | null>(null);
   const [lastProvingTime, setLastProvingTime] = useState<string>("0s");
+  const [spawnError, setSpawnError] = useState<string | null>(null);
+
 
   const fetchNetworkStatus = async () => {
     try {
@@ -54,6 +56,7 @@ export default function MissionControl() {
   }, []);
 
   const handleSpawn = async () => {
+    setSpawnError(null);
     setIsSpawning(true);
     setRuntimeLogs(["Initializing Peer-to-Peer Orchestrator...", "Contacting 0G Galileo Testnet..."]);
     
@@ -93,6 +96,7 @@ export default function MissionControl() {
     } catch (error: unknown) {
       const err = error as Error;
       console.error("Spawn failed:", err);
+      setSpawnError(err.message || "Spawn failed — check terminal logs for details.");
     } finally {
       setIsSpawning(false);
     }
@@ -122,7 +126,7 @@ export default function MissionControl() {
             >
               <Activity className="w-4 h-4" /> 0G Galileo Testnet Active
             </motion.div>
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-4 text-white">
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-4 text-white font-display">
               Sovereign <span className="text-gradient">Agents</span>
             </h1>
             <p className="text-lg text-white/60 max-w-2xl font-light">
@@ -148,6 +152,12 @@ export default function MissionControl() {
           </button>
         </header>
 
+        {spawnError && (
+          <div className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium flex items-center gap-3">
+            ❌ {spawnError}
+          </div>
+        )}
+
         {/* Real-Data Metrics Row */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
             <StatsCard 
@@ -163,7 +173,7 @@ export default function MissionControl() {
                 value={lastProvingTime} 
                 label="Duration" 
                 icon={<Cpu size={20} />}
-                trend="STARK (Local SP1 Prover)"
+                trend="Groth16 (snarkjs / circom 2.0)"
                 status={isSpawning ? "loading" : "online"}
             />
             <StatsCard 
@@ -182,7 +192,7 @@ export default function MissionControl() {
           {/* Active Agents Column */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-2 flex-1 text-white/90 uppercase tracking-wider text-xs font-bold opacity-60">
+              <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-2 flex-1 text-white/90 uppercase tracking-wider text-xs font-bold opacity-60 font-display">
                 <Shield className="w-5 h-5 text-white/50" /> Active Fleet
               </h2>
             </div>

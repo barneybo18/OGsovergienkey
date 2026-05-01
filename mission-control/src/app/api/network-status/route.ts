@@ -5,17 +5,13 @@ import path from "path";
 
 export async function GET() {
   try {
-    const orchestratorDir = path.resolve(process.cwd(), "..", "ai-orchestrator");
-    const envPath = path.join(orchestratorDir, ".env");
-    
-    // 1. Load config from orchestrator .env
-    const envContent = fs.readFileSync(envPath, "utf8");
-    const rpcEndpoint = envContent.match(/RPC_ENDPOINT=([^\n\r]+)/)?.[1];
-    const privateKey = envContent.match(/PRIVATE_KEY=([^\n\r]+)/)?.[1];
-    const indexerUrl = envContent.match(/INDEXER_URL=([^\n\r]+)/)?.[1];
+    // 1. Load config from process.env (Next.js server-side)
+    const rpcEndpoint = process.env.RPC_ENDPOINT;
+    const privateKey = process.env.PRIVATE_KEY;
+    const indexerUrl = process.env.INDEXER_URL;
 
     if (!rpcEndpoint || !privateKey) {
-        throw new Error("Missing RPC_ENDPOINT or PRIVATE_KEY in orchestrator .env");
+        throw new Error("Missing RPC_ENDPOINT or PRIVATE_KEY in environment variables");
     }
 
     const provider = new ethers.JsonRpcProvider(rpcEndpoint);
