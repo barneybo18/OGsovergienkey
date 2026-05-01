@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
 import * as dotenv from "dotenv";
+import { generateProof } from "./prover";
 
 dotenv.config();
 
@@ -88,36 +89,17 @@ class SovereignAgent {
             }
         };
 
-        // 2. Write inputs for ZK Engine
-        const zkInputWinDir = path.join(__dirname, "../../zk-engine/script");
-        const zkInputLinuxDir = `/mnt/c/Users/PR1M3/Desktop/SAK-Phase2/zk-engine/script`;
-        fs.writeFileSync(path.join(zkInputWinDir, "zk_input.json"), JSON.stringify(context, null, 2));
-        console.log(`[ZK] Inputs prepared for SP1 Prover.`);
-
-        // 3. Trigger ZK Prover via WSL (avoids NTFS rebuild glitches)
-        // SP1_PROVER is read from .env — set to 'network' to offload to Succinct's remote prover
-        // (avoids WSL OOM SIGKILL on local CPU mode). Set to 'cpu' to run locally.
-        const sp1Prover = process.env.SP1_PROVER || "network";
-        const sp1PrivateKey = process.env.SP1_PRIVATE_KEY ? `export SP1_PRIVATE_KEY=${process.env.SP1_PRIVATE_KEY} && ` : "";
-        console.log(`[ZK] Starting SP1 Prover in WSL (mode: ${sp1Prover})...`);
-        console.log(`[ZK] Compiling Prover... (This may take ~10min on first run)`);
+        // 2. Generate ZK Proof via snarkjs
         const provingStart = Date.now();
-        try {
-            execSync(
-                `wsl bash -l -c "${sp1PrivateKey}export SP1_PROVER=${sp1Prover} && export PATH=/home/prime/.cargo/bin:/home/prime/.sp1/bin:\\$PATH && cd '${zkInputLinuxDir}' && cargo run --release"`,
-                { timeout: 2700000, stdio: "inherit" }  // 45-minute timeout
-            );
-        } catch (err) {
-            console.error("ZK Proving failed. The intent might violate the constitution.");
-            throw err;
-        }
+        const { pubInputs, proofBytes } = await generateProof(
+            amount, 
+            targetAddress, 
+            1000, 
+            targetAddress
+        );
         const provingDuration = ((Date.now() - provingStart) / 1000).toFixed(1);
-        console.log(`[PROVING] 🛡️ STARK Proof Successfully Generated in ${provingDuration}s.`);
+        console.log(`[PROVING] 🛡️ Groth16 Proof Successfully Generated in ${provingDuration}s.`);
         console.log(`PROVING_DURATION: ${provingDuration}s`);
-
-        // 4. Load ZK Proof Output
-        const zkOutput = JSON.parse(fs.readFileSync(path.join(zkInputWinDir, "zk_output.json"), "utf8"));
-        console.log(`✅ ZK Proof generated and verified locally.`);
 
         // 5. Log raw intent to 0G DA
         let intentRootHash = "0x-offline-intent";
@@ -129,11 +111,6 @@ class SovereignAgent {
 
         // 6. Final Settlement on-chain
         console.log(`[Settlement] Calling AgentRegistry.logIntent on 0G Chain...`);
-        // Decode hex-encoded proof output from ZK engine
-        const proofBytes = Buffer.from(zkOutput.proof, "hex");
-        const pubValBytes = Buffer.from(zkOutput.public_values, "hex");
-
-        const pubInputs = this.bytesToUint256Array(pubValBytes);
         const tx = await this.registry.logIntent(agentId, intentRootHash, pubInputs, proofBytes);
         const receipt = await this.waitForReceipt(tx);
 
