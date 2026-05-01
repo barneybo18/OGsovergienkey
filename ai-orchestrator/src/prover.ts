@@ -33,14 +33,24 @@ export async function generateProof(
         console.log(`[ZK-Prover] Exporting Solidity calldata...`);
         const calldata = await snarkjs.groth16.exportSolidityCallData(proof, publicSignals);
         
-        const argv = calldata.replace(/["[\]\s]/g, "").split(",");
-        const proofHex = argv.slice(0, 8).map((x: string) => x.replace("0x", "").padStart(64, "0")).join("");
+        // Parse the Solidity calldata string from snarkjs into typed arrays
+        const calldataArr = JSON.parse("[" + calldata + "]");
+        // Groth16 calldata: [pA[2], pB[2][2], pC[2], pubSignals[]]
+        const pA = calldataArr[0];   // [x, y]
+        const pB = calldataArr[1];   // [[x1,x2],[y1,y2]]
+        const pC = calldataArr[2];   // [x, y]
+        const pubSignalsRaw = calldataArr[3];  // string[]
+        // Pack proof points into bytes for the IZKVerifier interface
+        const allPoints = [pA[0], pA[1], pB[0][0], pB[0][1], pB[1][0], pB[1][1], pC[0], pC[1]];
+        const proofHex = allPoints.map((x: string) => x.replace("0x","").padStart(64,"0")).join("");
         const proofBytes = Buffer.from(proofHex, "hex");
-        const pubInputs = argv.slice(8).map((x: string) => BigInt(x));
+        const pubInputs = pubSignalsRaw.map((x: string) => BigInt(x));
 
         return { pubInputs, proofBytes };
     } catch (error) {
-        console.warn(`[ZK-Prover] Real proving failed (likely missing artifacts). Falling back to MOCK mode for demo.`);
+        console.warn(`[ZK-Prover] ⚠️  RUNNING IN MOCK MODE — circuit artifacts not found.`);
+        console.warn(`[ZK-Prover] ⚠️  Real on-chain verification WILL FAIL with the real Verifier.`);
+        console.warn(`[ZK-Prover] ⚠️  Fix: run ./zk-engine/circuits/compile.sh to generate artifacts.`);
         // Return dummy valid-looking proof for the Mock Verifier
         const pubInputs = [BigInt(intentAmount), targetBigInt, BigInt(maxSpendLimit), whitelistBigInt];
         const proofBytes = Buffer.from("00".repeat(256), "hex"); // 256 bytes of zeros

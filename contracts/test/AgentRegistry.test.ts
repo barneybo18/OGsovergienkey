@@ -22,8 +22,8 @@ describe("AgentRegistry", function () {
 
   describe("Registration", function () {
     it("Should register a new agent correctly", async function () {
-      const pubKey = "sak_pub_123";
-      const constitutionHash = "0x-storage-root";
+      const pubKey = ethers.encodeBytes32String("sak_pub_123");
+      const constitutionHash = ethers.encodeBytes32String("0x-storage-root");
 
       await expect(registry.registerAgent(pubKey, constitutionHash))
         .to.emit(registry, "AgentRegistered")
@@ -31,14 +31,24 @@ describe("AgentRegistry", function () {
 
       const agent = await registry.agents(1);
       expect(agent.owner).to.equal(owner.address);
-      expect(agent.pubKey).to.equal(pubKey);
+      expect(agent.pubKeyHash).to.equal(pubKey);
       expect(agent.isActive).to.be.true;
+    });
+
+    it("Should fail if operator is not authorized", async function () {
+        const pubKey = ethers.encodeBytes32String("sak_pub_123");
+        const constitutionHash = ethers.encodeBytes32String("hash");
+        
+        await expect(registry.connect(otherAccount).registerAgent(pubKey, constitutionHash))
+          .to.be.revertedWith("Not authorized");
     });
   });
 
   describe("Intent Logging", function () {
     it("Should allow logging an intent with a valid proof", async function () {
-      await registry.registerAgent("pubkey", "hash");
+      const pubKey = ethers.encodeBytes32String("pubkey");
+      const constitutionHash = ethers.encodeBytes32String("hash");
+      await registry.registerAgent(pubKey, constitutionHash);
       
       const intentDataId = "da-root-456";
       const pubInputs = [100, 200];
@@ -49,15 +59,28 @@ describe("AgentRegistry", function () {
         .withArgs(1, intentDataId);
     });
 
-    it("Should fail if agent is inactive", async function () {
-      // In this version of the contract, we don't have a deactivate function yet
-      // but we can test the basic requirement.
-      const pubInputs = [100];
-      const proof = ethers.toUtf8Bytes("proof");
-      
-      // Agent 99 doesn't exist/is inactive by default
-      await expect(registry.logIntent(99, "data", pubInputs, proof))
-        .to.be.revertedWith("Agent is inactive");
+    it("Should fail if not the agent owner", async function () {
+        const pubKey = ethers.encodeBytes32String("pubkey");
+        const constitutionHash = ethers.encodeBytes32String("hash");
+        await registry.registerAgent(pubKey, constitutionHash);
+
+        await expect(registry.connect(otherAccount).logIntent(1, "data", [100], ethers.toUtf8Bytes("proof")))
+          .to.be.revertedWith("Not the agent owner");
     });
+  });
+
+  describe("Management", function () {
+      it("Should allow deactivating an agent", async function () {
+          const pubKey = ethers.encodeBytes32String("pubkey");
+          const constitutionHash = ethers.encodeBytes32String("hash");
+          await registry.registerAgent(pubKey, constitutionHash);
+
+          await expect(registry.deactivateAgent(1))
+            .to.emit(registry, "AgentDeactivated")
+            .withArgs(1);
+          
+          const agent = await registry.getAgent(1);
+          expect(agent.isActive).to.be.false;
+      });
   });
 });
