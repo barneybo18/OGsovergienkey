@@ -84,14 +84,19 @@ export default function MissionControl() {
     setIsSpawning(true);
     setRuntimeLogs(["Initializing Peer-to-Peer Orchestrator...", "Contacting 0G Galileo Testnet..."]);
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s UI timeout
+
     try {
       const response = await fetch("/api/spawn-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           name: `Sovereign-Alpha-${Math.floor(Math.random() * 999)}`,
         }),
       });
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 

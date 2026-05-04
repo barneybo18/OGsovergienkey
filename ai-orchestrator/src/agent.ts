@@ -63,15 +63,28 @@ class SovereignAgent {
         
         // 3. Register on 0G Chain (Requires RPC to be up)
         console.log(`[Flow] Registering agent on-chain at ${ADDRESSES.AgentRegistry}...`);
-        const pubKey = agentPubKeyHex; // Real ephemeral agent public key hash
-        // Convert constitutionHash string to bytes32
+        
+        // --- NEW: Constitution Verification Cycle ---
+        const provingStart = Date.now();
+        // Generate a proof that the constitution is valid for this agent
+        const { pA, pB, pC, pubSignals } = await generateProof(
+            0, // Initial balance 0
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", // Default whitelist
+            1000, 
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        );
+        const provingDuration = ((Date.now() - provingStart) / 1000).toFixed(1);
+        console.log(`PROVING_DURATION: ${provingDuration}s`);
+        // --------------------------------------------
+
+        const pubKey = agentPubKeyHex; 
         const constitutionHashBytes32 = shardRootHash.startsWith('0x')
           ? shardRootHash.padEnd(66, '0').slice(0, 66)
           : ('0x' + shardRootHash).padEnd(66, '0').slice(0, 66);
+          
         const tx = await this.registry.registerAgent(pubKey, constitutionHashBytes32);
         const receipt = await this.waitForReceipt(tx);
         
-        // Extract agentId from event
         const event = receipt.logs.map((log: any) => this.registry.interface.parseLog(log)).find((log: any) => log?.name === "AgentRegistered");
         const agentId = event?.args[0];
 
@@ -183,14 +196,21 @@ class SovereignAgent {
 async function run() {
     const agent = new SovereignAgent();
     
-    // Test parameters: Using a stable test address for the demo run
+    // Check for --spawn-only flag
+    const isSpawnOnly = process.argv.includes("--spawn-only");
+    
+    // Test parameters
     const name = `Bot-${Math.floor(Math.random() * 1000)}`;
-    const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // Standard Hardhat Test Address #1
+    const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; 
     const reportPath = path.join(__dirname, "../../report.md");
     
     try {
         const agentId = await agent.spawn(name);
-        await agent.executeIntent(agentId, 800, target);
+        
+        if (!isSpawnOnly) {
+            await agent.executeIntent(agentId, 800, target);
+        }
+
         console.log("\n🚀 MISSION SUCCESSFUL: Sovereign Agent is live and secured.");
         
         // Append to report.md

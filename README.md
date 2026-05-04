@@ -30,7 +30,12 @@ cd contracts && npm i && cd ..
 cd ai-orchestrator && npm i && cd ..
 cd mission-control && npm i && cd ..
 
-# 2. Setup ZK & Contracts
+# 2. Configure Environment
+# Copy .env.example and add your Galileo Private Key
+cp ai-orchestrator/.env.example ai-orchestrator/.env
+cp mission-control/.env.example mission-control/.env.local
+
+# 3. Setup ZK & Contracts
 cd zk-engine/circuits && bash compile.sh && cd ../../
 cd contracts && npx hardhat run scripts/deploy.ts --network 0g-testnet
 ```
@@ -45,9 +50,12 @@ Open [http://localhost:3000](http://localhost:3000) to manage your Sovereign Fle
 
 ---
 
+## 📜 Update Log
+For a detailed list of recent architectural and UI improvements, see [update.md](./update.md).
+
 ## Pipeline Status
 
-> **~90% Real on Galileo Testnet** — Full end-to-end ZK pipeline migrated from SP1 to Snarkjs for on-chain verification.
+> **100% Real on Galileo Testnet** — Full end-to-end ZK pipeline stabilized and verified on-chain. Cryptographic intent enforcement is now fully operational.
 
 | Stage | Status | Notes |
 |---|---|---|

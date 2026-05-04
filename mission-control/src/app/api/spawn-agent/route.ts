@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Execution (Using ts-node transpile-only for speed)
-    const command = `npx ts-node --transpile-only src/agent.ts`;
+    const command = `npx ts-node --transpile-only src/agent.ts --spawn-only`;
     console.log(`[API] Executing command: ${command} in ${orchestratorPath}`);
 
     const startTime = Date.now();
