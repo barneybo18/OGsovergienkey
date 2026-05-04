@@ -1,72 +1,66 @@
 # 🚀 Run Guide: Sovereign Agent Keys
 
-Follow these steps to launch the SAK system and spawn your first agent.
+Use this guide to understand what needs to be set up once versus what you need to run every time you use the system.
 
-## 1. Prerequisites
+---
 
-- **Node.js**: >= 20.x
-- **circom**: Installed on your system (or use [zkREPL.dev](https://zkrepl.dev) to generate artifacts)
-- **snarkjs**: `npm install -g snarkjs`
-- **Wallet**: An EVM wallet with 0G Galileo Testnet tokens.
+## 🛠️ Track A: The Foundation (One-Time Setup)
+*You only need to do these steps once when setting up the project for the first time.*
 
-## 2. Environment Configuration
+### 1. Install Dependencies
+Run this in the root directory:
+```bash
+cd contracts && npm install && cd ..
+cd ai-orchestrator && npm install && cd ..
+cd mission-control && npm install && cd ..
+```
 
-Create a `.env` file in the `ai-orchestrator` directory:
-
+### 2. Environment Configuration
+Create a `.env` file in `ai-orchestrator/`:
 ```env
-PRIVATE_KEY=0x...
+PRIVATE_KEY=0x... # Your Galileo Wallet Key
 RPC_ENDPOINT=https://evmrpc-testnet.0g.ai/
 INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
-STORAGE_NODE_URL=https://storage-testnet-rpc.0g.ai
 ```
 
-## 3. Circuit Compilation
-
-> [!IMPORTANT]
-> **This step is mandatory for real cryptographic enforcement.** Without running this, the system will operate in "Demo Mode" using a placeholder Verifier.
-
-Navigate to the circuits directory and compile the constitution logic:
-
+### 3. ZK Circuit Compilation
+Compile the mathematical "Constitution" that governs your agents:
 ```bash
 cd zk-engine/circuits
-chmod +x compile.sh
-./compile.sh
+bash compile.sh
 ```
 
-This generates:
-- `Verifier.sol` in `contracts/contracts/`
-- `circuit_final.zkey` in `zk-engine/circuits/`
-- WASM artifacts in `zk-engine/circuits/build/`
-
-## 4. Smart Contract Deployment
-
-Deploy the Agent Registry and ZK Verifier to 0G Galileo:
-
+### 4. Smart Contract Deployment
+Deploy your registry to the 0G Galileo Testnet:
 ```bash
 cd contracts
 npx hardhat run scripts/deploy.ts --network 0g-testnet
 ```
+*Note: This saves your contract addresses to `addresses.json`. You are now ready to go!*
 
-## 5. Start Mission Control
+---
 
-Launch the operator dashboard:
+## 🛰️ Track B: The Mission (Every Time You Run)
+*These are the only steps you need to take to use the app daily.*
 
+### 1. Launch the Mission Control Dashboard
 ```bash
 cd mission-control
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000).
 
-Visit `http://localhost:3001` to begin spawning agents.
+### 2. Manage Your Fleet
+- **Spawn Agents**: Click the "Spawn" button to create a new ZK-secured agent.
+- **Persistent View**: Because of the decentralized scanner, your agents will appear automatically even after a refresh. Use the **Rotate** icon to fetch the latest updates from the blockchain.
 
 ---
 
 ## 🛠️ Troubleshooting
 
-### "Artifact for contract 'Verifier' not found"
-Ensure you have run the `./compile.sh` script in `zk-engine/circuits` before deploying contracts. This script generates the Solidity verifier.
+### "ZK Proof is invalid"
+This happens if your `ai-orchestrator` artifacts don't match the on-chain `Verifier`. 
+**Fix:** If you change your circuit, you must re-run **Track A (Steps 3 & 4)**.
 
-### "RPC Error: -32000"
-This is a known Galileo RPC quirk. The system includes a polling fallback in `agent.ts` that will eventually pick up the transaction. Just wait for the "Network Telemetry" log to confirm.
-
-### Proving fails locally
-If you don't have `circom` installed, the `ai-orchestrator` will enter **Demo Mode** automatically. It will still post transactions to the 0G Chain and DA, but it will skip the local cryptographic proving step.
+### 0G Testnet RPC Lag
+If the dashboard says "Syncing" for a long time, the 0G Testnet nodes might be under high load. Simply wait or click the "Refresh" button in the "Active Fleet" section.

@@ -2,7 +2,6 @@ import { ZeroGService } from "./0g-service";
 import { ethers } from "ethers";
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
 import * as dotenv from "dotenv";
 import { generateProof } from "./prover";
 const sss = require('shamirs-secret-sharing');
@@ -64,15 +63,28 @@ class SovereignAgent {
         
         // 3. Register on 0G Chain (Requires RPC to be up)
         console.log(`[Flow] Registering agent on-chain at ${ADDRESSES.AgentRegistry}...`);
-        const pubKey = agentPubKeyHex; // Real ephemeral agent public key hash
-        // Convert constitutionHash string to bytes32
+        
+        // --- NEW: Constitution Verification Cycle ---
+        const provingStart = Date.now();
+        // Generate a proof that the constitution is valid for this agent
+        const { pA, pB, pC, pubSignals } = await generateProof(
+            0, // Initial balance 0
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", // Default whitelist
+            1000, 
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        );
+        const provingDuration = ((Date.now() - provingStart) / 1000).toFixed(1);
+        console.log(`PROVING_DURATION: ${provingDuration}s`);
+        // --------------------------------------------
+
+        const pubKey = agentPubKeyHex; 
         const constitutionHashBytes32 = shardRootHash.startsWith('0x')
           ? shardRootHash.padEnd(66, '0').slice(0, 66)
           : ('0x' + shardRootHash).padEnd(66, '0').slice(0, 66);
+          
         const tx = await this.registry.registerAgent(pubKey, constitutionHashBytes32);
         const receipt = await this.waitForReceipt(tx);
         
-        // Extract agentId from event
         const event = receipt.logs.map((log: any) => this.registry.interface.parseLog(log)).find((log: any) => log?.name === "AgentRegistered");
         const agentId = event?.args[0];
 
@@ -109,7 +121,7 @@ class SovereignAgent {
 
         // 2. Generate ZK Proof via snarkjs
         const provingStart = Date.now();
-        const { pubInputs, proofBytes } = await generateProof(
+        const { pA, pB, pC, pubSignals } = await generateProof(
             amount, 
             targetAddress, 
             1000, 
@@ -129,7 +141,7 @@ class SovereignAgent {
 
         // 6. Final Settlement on-chain
         console.log(`[Settlement] Calling AgentRegistry.logIntent on 0G Chain...`);
-        const tx = await this.registry.logIntent(agentId, intentRootHash, pubInputs, proofBytes);
+        const tx = await this.registry.logIntent(agentId, intentRootHash, pA, pB, pC, pubSignals);
         const receipt = await this.waitForReceipt(tx);
 
         console.log(`✅ Intent anchored on-chain! Memory Root: ${intentRootHash}, TX: ${receipt.hash}`);
@@ -184,14 +196,21 @@ class SovereignAgent {
 async function run() {
     const agent = new SovereignAgent();
     
+    // Check for --spawn-only flag
+    const isSpawnOnly = process.argv.includes("--spawn-only");
+    
     // Test parameters
     const name = `Bot-${Math.floor(Math.random() * 1000)}`;
-    const target = "DEADBEEF00000000000000000000000000000000"; // 20 bytes
+    const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; 
     const reportPath = path.join(__dirname, "../../report.md");
     
     try {
         const agentId = await agent.spawn(name);
-        await agent.executeIntent(agentId, 800, target);
+        
+        if (!isSpawnOnly) {
+            await agent.executeIntent(agentId, 800, target);
+        }
+
         console.log("\n🚀 MISSION SUCCESSFUL: Sovereign Agent is live and secured.");
         
         // Append to report.md

@@ -1,0 +1,12 @@
+{
+  "name": "sak-zk-engine",
+  "version": "1.0.0",
+  "description": "ZK Proving Engine for Sovereign Agent Keys",
+  "dependencies": {
+    "snarkjs": "^0.7.4"
+  },
+  "devDependencies": {
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0"
+  }
+}

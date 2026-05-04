@@ -5,15 +5,16 @@ import "../interfaces/IZKVerifier.sol";
 
 /**
  * @title MockZKVerifier
- * @dev A mock verifier for the hackathon MVP frontend speed. 
- * Ultimately replaced by the real Succinct / RISC Zero verifier.
+ * @dev A mock verifier for local testing that always returns true for any proof.
+ * Used during the transition from mock to real ZK.
  */
 contract MockZKVerifier is IZKVerifier {
-    
-    // Simulate accepting any non-empty proof for the MVP setup
-    function verify(uint256[] memory /*pubInputs*/, bytes memory proof) external pure override returns (bool) {
-        require(proof.length > 0, "Proof cannot be empty");
-        // In production: verify proof logic here
+    function verifyProof(
+        uint[2] memory /*pA*/,
+        uint[2][2] memory /*pB*/,
+        uint[2] memory /*pC*/,
+        uint[4] memory /*pubSignals*/
+    ) external pure override returns (bool) {
         return true;
     }
 }

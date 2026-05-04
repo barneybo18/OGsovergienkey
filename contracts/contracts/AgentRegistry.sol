@@ -88,12 +88,19 @@ contract AgentRegistry is Ownable {
      * that the intent adheres to the current constitution.
      * @param intentDataId A reference ID to the raw intent data stored on 0G DA
      */
-    function logIntent(uint256 agentId, string memory intentDataId, uint256[] memory pubInputs, bytes memory zkProof) external {
+    function logIntent(
+        uint256 agentId, 
+        string memory intentDataId, 
+        uint[2] memory pA, 
+        uint[2][2] memory pB, 
+        uint[2] memory pC, 
+        uint[4] memory pubSignals
+    ) external {
         require(agents[agentId].owner == msg.sender, "Not the agent owner");
         require(agents[agentId].isActive, "Agent is inactive");
         
         // 1. Send proof into the Verifier contract
-        bool isValid = verifier.verify(pubInputs, zkProof);
+        bool isValid = verifier.verifyProof(pA, pB, pC, pubSignals);
         require(isValid, "ZK Proof is invalid");
 
         // 2. If valid, log the intent to the registry memory 
