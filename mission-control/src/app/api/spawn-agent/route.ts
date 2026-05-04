@@ -25,14 +25,18 @@ export async function POST(request: Request) {
     }
 
     // 3. Execution (Using ts-node transpile-only for speed)
-    // Raised timeout to 45 minutes for REAL SP1 ZK proving + compilation
     const command = `npx ts-node --transpile-only src/agent.ts`;
+    console.log(`[API] Executing command: ${command} in ${orchestratorPath}`);
 
+    const startTime = Date.now();
     const { stdout, stderr } = await execAsync(command, {
       cwd: orchestratorPath,
       timeout: 2700000, 
       env: { ...process.env, TS_NODE_TRANSPILE_ONLY: "true" }
     });
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    console.log(`[API] Orchestrator finished in ${duration}s`);
 
     if (stderr && stderr.includes("Error")) {
         console.error(`[API] Orchestrator Stderr: ${stderr}`);

@@ -2,7 +2,6 @@ import { ZeroGService } from "./0g-service";
 import { ethers } from "ethers";
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
 import * as dotenv from "dotenv";
 import { generateProof } from "./prover";
 const sss = require('shamirs-secret-sharing');
@@ -109,7 +108,7 @@ class SovereignAgent {
 
         // 2. Generate ZK Proof via snarkjs
         const provingStart = Date.now();
-        const { pubInputs, proofBytes } = await generateProof(
+        const { pA, pB, pC, pubSignals } = await generateProof(
             amount, 
             targetAddress, 
             1000, 
@@ -129,7 +128,7 @@ class SovereignAgent {
 
         // 6. Final Settlement on-chain
         console.log(`[Settlement] Calling AgentRegistry.logIntent on 0G Chain...`);
-        const tx = await this.registry.logIntent(agentId, intentRootHash, pubInputs, proofBytes);
+        const tx = await this.registry.logIntent(agentId, intentRootHash, pA, pB, pC, pubSignals);
         const receipt = await this.waitForReceipt(tx);
 
         console.log(`✅ Intent anchored on-chain! Memory Root: ${intentRootHash}, TX: ${receipt.hash}`);
@@ -184,9 +183,9 @@ class SovereignAgent {
 async function run() {
     const agent = new SovereignAgent();
     
-    // Test parameters
+    // Test parameters: Using a stable test address for the demo run
     const name = `Bot-${Math.floor(Math.random() * 1000)}`;
-    const target = "DEADBEEF00000000000000000000000000000000"; // 20 bytes
+    const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // Standard Hardhat Test Address #1
     const reportPath = path.join(__dirname, "../../report.md");
     
     try {

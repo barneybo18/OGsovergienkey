@@ -36,24 +36,28 @@ export async function generateProof(
         // Parse the Solidity calldata string from snarkjs into typed arrays
         const calldataArr = JSON.parse("[" + calldata + "]");
         // Groth16 calldata: [pA[2], pB[2][2], pC[2], pubSignals[]]
-        const pA = calldataArr[0];   // [x, y]
-        const pB = calldataArr[1];   // [[x1,x2],[y1,y2]]
-        const pC = calldataArr[2];   // [x, y]
-        const pubSignalsRaw = calldataArr[3];  // string[]
-        // Pack proof points into bytes for the IZKVerifier interface
-        const allPoints = [pA[0], pA[1], pB[0][0], pB[0][1], pB[1][0], pB[1][1], pC[0], pC[1]];
-        const proofHex = allPoints.map((x: string) => x.replace("0x","").padStart(64,"0")).join("");
-        const proofBytes = Buffer.from(proofHex, "hex");
-        const pubInputs = pubSignalsRaw.map((x: string) => BigInt(x));
+        const pA = calldataArr[0];   
+        const pB = calldataArr[1];   
+        const pC = calldataArr[2];   
+        const pubSignals = calldataArr[3];  
+        // 4. Verify locally first to ensure artifacts are correct
+        const vKey = require("../../zk-engine/circuits/verification_key.json");
+        const res = await snarkjs.groth16.verify(vKey, publicSignals, proof);
+        if (res !== true) {
+            throw new Error("ZK Proof generated locally is INVALID. Check circuit logic or artifacts.");
+        }
+        console.log(`[ZK-Prover] ✅ Local verification passed.`);
 
-        return { pubInputs, proofBytes };
+        return { pA, pB, pC, pubSignals };
     } catch (error) {
-        console.warn(`[ZK-Prover] ⚠️  RUNNING IN MOCK MODE — circuit artifacts not found.`);
-        console.warn(`[ZK-Prover] ⚠️  Real on-chain verification WILL FAIL with the real Verifier.`);
-        console.warn(`[ZK-Prover] ⚠️  Fix: run ./zk-engine/circuits/compile.sh to generate artifacts.`);
-        // Return dummy valid-looking proof for the Mock Verifier
-        const pubInputs = [BigInt(intentAmount), targetBigInt, BigInt(maxSpendLimit), whitelistBigInt];
-        const proofBytes = Buffer.from("00".repeat(256), "hex"); // 256 bytes of zeros
-        return { pubInputs, proofBytes };
+        if (error instanceof Error && error.message.includes("INVALID")) throw error;
+        
+        console.warn(`[ZK-Prover] ⚠️  RUNNING IN MOCK MODE — circuit artifacts not found or error: ${error}`);
+        return { 
+            pA: ["0", "0"], 
+            pB: [["0", "0"], ["0", "0"]], 
+            pC: ["0", "0"], 
+            pubSignals: [intentAmount.toString(), targetBigInt.toString(), maxSpendLimit.toString(), whitelistBigInt.toString()]
+        };
     }
 }

@@ -13,18 +13,22 @@ interface AgentCardProps {
   name: string;
   id: string;
   rootHash: string;
+  pubKeyHash?: string;
+  owner?: string;
   zkStatus: "Verified" | "Pending" | "Failed";
   txHash?: string;
   className?: string;
+  onClick?: () => void;
 }
 
-export function AgentCard({ name, id, rootHash, zkStatus, txHash, className }: AgentCardProps) {
+export function AgentCard({ name, id, rootHash, pubKeyHash, owner, zkStatus, txHash, className, onClick }: AgentCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       whileHover={{ y: -5 }}
+      onClick={onClick}
       className={cn("glass-panel p-6 rounded-2xl flex flex-col gap-4 group cursor-pointer transition-all bracket-corners", className)}
     >
       {/* Header */}

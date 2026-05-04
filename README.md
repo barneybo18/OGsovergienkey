@@ -21,40 +21,27 @@ Built for the **0G Labs APAC Hackathon (Akon's Quest)**.
 
 ---
 
-## ⚡ Quick Start (Local Setup)
+## ⚡ Quick Start
 
-### 1. Clone & Install Dependencies
+### 🏗️ Phase 1: One-Time Setup
 ```bash
-git clone https://github.com/barneybo18/OGsovergienkey.git
-cd OGsovergienkey
+# 1. Install all dependencies
+cd contracts && npm i && cd ..
+cd ai-orchestrator && npm i && cd ..
+cd mission-control && npm i && cd ..
 
-# Install all module dependencies
-cd contracts && npm install && cd ..
-cd ai-orchestrator && npm install && cd ..
-cd mission-control && npm install && cd ..
+# 2. Setup ZK & Contracts
+cd zk-engine/circuits && bash compile.sh && cd ../../
+cd contracts && npx hardhat run scripts/deploy.ts --network 0g-testnet
 ```
 
-### 2. Environment Setup
-Copy the example env in `ai-orchestrator`:
+### 🚀 Phase 2: Daily Run
 ```bash
-cd ai-orchestrator
-cp .env.example .env
-```
-Fill in your `PRIVATE_KEY` (must have Galileo tokens). Get tokens from the [0G Faucet](https://faucet.0g.ai).
-
-### 3. Compile ZK Circuit
-*Requires `circom` and `snarkjs` installed.*
-```bash
-cd zk-engine/circuits
-./compile.sh
-```
-
-### 4. Launch Dashboard
-```bash
+# Start the dashboard
 cd mission-control
 npm run dev
 ```
-Open [http://localhost:3001](http://localhost:3001) to start spawning agents!
+Open [http://localhost:3000](http://localhost:3000) to manage your Sovereign Fleet.
 
 ---
 
@@ -68,7 +55,7 @@ Open [http://localhost:3001](http://localhost:3001) to start spawning agents!
 | Agent Registration on-chain | ✅ Real | AgentRegistry contract on Chain 16602 |
 | AI Intent → 0G DA | ✅ Real | Real Galileo DA nodes |
 | Final Settlement on-chain | ✅ Real | `AgentRegistry.logIntent()` TX confirmed |
-| ZK Proof (Groth16) | ✅ Real | circom 2.0 circuit, snarkjs Groth16, deployed Verifier.sol |
+| ZK Proof (Groth16) | ✅ Real | Circom 2.0 circuit, Groth16 artifacts compiled, real Verifier.sol deployed |
 
 ---
 
@@ -111,8 +98,8 @@ OGsovergienkey/
 
 | Contract | Address | Explorer |
 |---|---|---|
-| AgentRegistry | [`0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989`](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) |
-| Verifier (Groth16) | [`0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9`](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) |
+| AgentRegistry | [`0x2697e7Fdeac0FA4BC0b9dAbCa8574F4C5265b275`](https://chainscan-galileo.0g.ai/address/0x2697e7Fdeac0FA4BC0b9dAbCa8574F4C5265b275) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x2697e7Fdeac0FA4BC0b9dAbCa8574F4C5265b275) |
+| Verifier (Groth16) | [`0xdA121E88f23B88305C0fb0843Cf32b8FBF79DaAB`](https://chainscan-galileo.0g.ai/address/0xdA121E88f23B88305C0fb0843Cf32b8FBF79DaAB) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0xdA121E88f23B88305C0fb0843Cf32b8FBF79DaAB) |
 
 ---
 
