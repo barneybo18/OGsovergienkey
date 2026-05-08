@@ -1,27 +1,29 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { AgentRegistry, Verifier } from "../typechain-types";
+import { AgentRegistry, MockZKVerifier } from "../typechain-types";
 
 describe("AgentRegistry", function () {
   let registry: AgentRegistry;
-  let verifier: Verifier;
+  let verifier: MockZKVerifier;
   let owner: any;
   let otherAccount: any;
 
   beforeEach(async function () {
     [owner, otherAccount] = await ethers.getSigners();
 
-    const VerifierFactory = await ethers.getContractFactory("Verifier");
-    verifier = await VerifierFactory.deploy();
+    // Deploy mock verifier (for test purposes — real Verifier requires valid Groth16 proofs)
+    const MockZKVerifier = await ethers.getContractFactory("MockZKVerifier");
+    verifier = await MockZKVerifier.deploy();
     await verifier.waitForDeployment();
 
-    const RegistryFactory = await ethers.getContractFactory("AgentRegistry");
-    registry = await RegistryFactory.deploy(await verifier.getAddress());
+    // Deploy registry with verifier
+    const AgentRegistry = await ethers.getContractFactory("AgentRegistry");
+    registry = await AgentRegistry.deploy(await verifier.getAddress());
     await registry.waitForDeployment();
   });
 
   describe("Registration", function () {
-    it("Should register a new agent correctly", async function () {
+    it("should register a new agent and emit event", async function () {
       const pubKey = ethers.encodeBytes32String("sak_pub_123");
       const constitutionHash = ethers.encodeBytes32String("0x-storage-root");
 
@@ -35,52 +37,111 @@ describe("AgentRegistry", function () {
       expect(agent.isActive).to.be.true;
     });
 
-    it("Should fail if operator is not authorized", async function () {
-        const pubKey = ethers.encodeBytes32String("sak_pub_123");
-        const constitutionHash = ethers.encodeBytes32String("hash");
-        
-        await expect(registry.connect(otherAccount).registerAgent(pubKey, constitutionHash))
-          .to.be.revertedWith("Not authorized");
+    it("should fail if operator is not authorized", async function () {
+      const pubKey = ethers.encodeBytes32String("sak_pub_123");
+      const constitutionHash = ethers.encodeBytes32String("hash");
+      
+      await expect(registry.connect(otherAccount).registerAgent(pubKey, constitutionHash))
+        .to.be.revertedWith("Not authorized");
+    });
+
+    it("should increment agent IDs", async function () {
+      const key1 = ethers.encodeBytes32String("key1");
+      const key2 = ethers.encodeBytes32String("key2");
+      const hash1 = ethers.encodeBytes32String("hash1");
+      const hash2 = ethers.encodeBytes32String("hash2");
+
+      await registry.registerAgent(key1, hash1);
+      await registry.registerAgent(key2, hash2);
+
+      const agent1 = await registry.agents(1);
+      const agent2 = await registry.agents(2);
+      expect(agent1.pubKeyHash).to.equal(key1);
+      expect(agent2.pubKeyHash).to.equal(key2);
+    });
+  });
+
+  describe("Constitution Updates", function () {
+    beforeEach(async function () {
+      const pubKey = ethers.encodeBytes32String("key1");
+      const hash = ethers.encodeBytes32String("hash1");
+      await registry.registerAgent(pubKey, hash);
+    });
+
+    it("should allow owner to update constitution", async function () {
+      const newHash = ethers.encodeBytes32String("new-constitution");
+      await expect(registry.updateConstitution(1, newHash))
+        .to.emit(registry, "ConstitutionUpdated")
+        .withArgs(1, newHash);
+
+      const agent = await registry.agents(1);
+      expect(agent.constitutionHash).to.equal(newHash);
+    });
+
+    it("should reject constitution update from non-owner", async function () {
+      const newHash = ethers.encodeBytes32String("bad-hash");
+      await expect(
+        registry.connect(otherAccount).updateConstitution(1, newHash)
+      ).to.be.revertedWith("Not the agent owner");
     });
   });
 
   describe("Intent Logging", function () {
-    it("Should allow logging an intent with a valid proof", async function () {
+    beforeEach(async function () {
       const pubKey = ethers.encodeBytes32String("pubkey");
       const constitutionHash = ethers.encodeBytes32String("hash");
       await registry.registerAgent(pubKey, constitutionHash);
-      
-      const intentDataId = "da-root-456";
-      const pubInputs = [100, 200];
-      const proof = ethers.toUtf8Bytes("mock-proof");
+    });
 
-      await expect(registry.logIntent(1, intentDataId, pubInputs, proof))
+    it("should log intent with valid (mock) ZK proof", async function () {
+      const intentDataId = "da-root-456";
+      // Mock Groth16 proof points (MockZKVerifier accepts anything)
+      const pA: [bigint, bigint] = [1n, 2n];
+      const pB: [[bigint, bigint], [bigint, bigint]] = [[1n, 2n], [3n, 4n]];
+      const pC: [bigint, bigint] = [1n, 2n];
+      const pubSignals: [bigint, bigint, bigint, bigint] = [800n, 100n, 1n, 1n];
+
+      await expect(registry.logIntent(1, intentDataId, pA, pB, pC, pubSignals))
         .to.emit(registry, "IntentLogged")
         .withArgs(1, intentDataId);
     });
 
-    it("Should fail if not the agent owner", async function () {
-        const pubKey = ethers.encodeBytes32String("pubkey");
-        const constitutionHash = ethers.encodeBytes32String("hash");
-        await registry.registerAgent(pubKey, constitutionHash);
+    it("should reject intent for inactive agent", async function () {
+      await registry.deactivateAgent(1);
+      const pA: [bigint, bigint] = [1n, 2n];
+      const pB: [[bigint, bigint], [bigint, bigint]] = [[1n, 2n], [3n, 4n]];
+      const pC: [bigint, bigint] = [1n, 2n];
+      const pubSignals: [bigint, bigint, bigint, bigint] = [800n, 100n, 1n, 1n];
 
-        await expect(registry.connect(otherAccount).logIntent(1, "data", [100], ethers.toUtf8Bytes("proof")))
-          .to.be.revertedWith("Not the agent owner");
+      await expect(
+        registry.logIntent(1, "intent-id", pA, pB, pC, pubSignals)
+      ).to.be.revertedWith("Agent is inactive");
+    });
+
+    it("should fail if not the agent owner", async function () {
+      const pA: [bigint, bigint] = [1n, 2n];
+      const pB: [[bigint, bigint], [bigint, bigint]] = [[1n, 2n], [3n, 4n]];
+      const pC: [bigint, bigint] = [1n, 2n];
+      const pubSignals: [bigint, bigint, bigint, bigint] = [800n, 100n, 1n, 1n];
+
+      await expect(
+        registry.connect(otherAccount).logIntent(1, "data", pA, pB, pC, pubSignals)
+      ).to.be.revertedWith("Not the agent owner");
     });
   });
 
   describe("Management", function () {
-      it("Should allow deactivating an agent", async function () {
-          const pubKey = ethers.encodeBytes32String("pubkey");
-          const constitutionHash = ethers.encodeBytes32String("hash");
-          await registry.registerAgent(pubKey, constitutionHash);
+    it("should allow deactivating an agent", async function () {
+      const pubKey = ethers.encodeBytes32String("pubkey");
+      const constitutionHash = ethers.encodeBytes32String("hash");
+      await registry.registerAgent(pubKey, constitutionHash);
 
-          await expect(registry.deactivateAgent(1))
-            .to.emit(registry, "AgentDeactivated")
-            .withArgs(1);
-          
-          const agent = await registry.getAgent(1);
-          expect(agent.isActive).to.be.false;
-      });
+      await expect(registry.deactivateAgent(1))
+        .to.emit(registry, "AgentDeactivated")
+        .withArgs(1);
+      
+      const agent = await registry.getAgent(1);
+      expect(agent.isActive).to.be.false;
+    });
   });
 });

@@ -35,9 +35,9 @@ export function StatsCard({ title, value, label, icon, trend, status = "online" 
 
       <div>
         <h3 className="text-white/40 text-xs font-bold uppercase tracking-widest mb-1">{title}</h3>
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold tracking-tighter text-white">{value}</span>
-          <span className="text-xs text-white/60 font-medium">{label}</span>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="text-3xl font-bold tracking-tighter text-white truncate min-w-0">{value}</span>
+          <span className="text-xs text-white/60 font-medium flex-shrink-0">{label}</span>
         </div>
         {trend && (
           <p className="mt-2 text-[10px] text-brand-cyan/80 font-semibold tracking-wide flex items-center gap-1">

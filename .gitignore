@@ -15,7 +15,10 @@ contracts/cache/
 contracts/typechain-types/
 contracts/dist/
 
-# Rust / ZK Engine
+# ZK Engine (circom + snarkjs)
+zk-engine/build/
+zk-engine/dist/
+zk-engine/node_modules/
 zk-engine/target/
 zk-engine/program/elf/
 *.ptau

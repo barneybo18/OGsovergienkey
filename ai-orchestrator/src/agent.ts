@@ -96,6 +96,11 @@ class SovereignAgent {
 
     /**
      * Phase 2: Action - Form intent, Prove via ZK, Log to DA, Settle on-chain
+     *
+     * >> PREPARING SETTLEMENT:
+     * 1. The raw intent data is sent to the snarkjs Groth16 Prover.
+     * 2. The output Groth16 Proof + the 0G DA Root Hash are aggregated.
+     * 3. MPC Nodes verify ZK Proof on-chain -> decrypt shard -> sign transaction!
      */
     async executeIntent(agentId: bigint, amount: number, targetAddress: string) {
         console.log(`\n>> [EXECUTION] Agent ${agentId} forming intent...`);

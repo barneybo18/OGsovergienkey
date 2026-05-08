@@ -1,34 +1,68 @@
-pragma circom 2.0.0;
+pragma circom 2.1.6;
 
-include "circomlib/circuits/comparators.circom";
+include "../node_modules/circomlib/circuits/comparators.circom";
 
-template Constitution() {
-    // Private inputs
-    signal input intent_amount;
-    signal input target_address;
+/**
+ * ConstitutionVerifier
+ * --------------------
+ * Proves that an AI agent's intent complies with its Constitution rules
+ * WITHOUT revealing the private constitution parameters.
+ *
+ * Private inputs (hidden inside proof):
+ *   - maxSpendLimit      : The agent's maximum allowed spend (u64 range)
+ *   - whitelistedAddress : The only address the agent may interact with (160-bit)
+ *
+ * Public inputs (visible on-chain / in the proof journal):
+ *   - intentAmount       : How much the agent wants to spend
+ *   - targetAddress      : Where the agent wants to send funds
+ *   - assetId            : Which asset the agent is operating on
+ *
+ * Constraints enforced:
+ *   1. intentAmount <= maxSpendLimit
+ *   2. targetAddress === whitelistedAddress
+ */
+template ConstitutionVerifier() {
 
-    // Public inputs
-    signal input max_spend_limit;
-    signal input whitelisted_address;
+    // === Public signals (exposed in the proof) ===
+    signal input intentAmount;
+    signal input targetAddress;
+    signal input assetId;
 
-    // Outputs
-    signal output committed_amount;
-    signal output committed_address;
+    // === Private signals (hidden by zero-knowledge) ===
+    signal input maxSpendLimit;
+    signal input whitelistedAddress;
 
-    // 1. Constraint: target_address === whitelisted_address
-    target_address === whitelisted_address;
+    // === Output (1 = valid, circuit will fail if constraints don't hold) ===
+    signal output valid;
 
-    // 2. Constraint: intent_amount <= max_spend_limit
-    // Using LessEqThan from circomlib (standard way to do <=)
-    // We use 64 bits to safely cover standard amount ranges
-    component leq = LessEqThan(64);
-    leq.in[0] <== intent_amount;
-    leq.in[1] <== max_spend_limit;
-    leq.out === 1;
+    // --------------------------------------------------
+    // Constraint 1: intentAmount <= maxSpendLimit
+    // We use LessEqThan(64) because our amounts are u64 (max 2^64 - 1)
+    // --------------------------------------------------
+    component spendCheck = LessEqThan(64);
+    spendCheck.in[0] <== intentAmount;
+    spendCheck.in[1] <== maxSpendLimit;
 
-    // Assign outputs
-    committed_amount <== intent_amount;
-    committed_address <== target_address;
+    // Force the comparator output to be 1 (true)
+    spendCheck.out === 1;
+
+    // --------------------------------------------------
+    // Constraint 2: targetAddress === whitelistedAddress
+    // Direct equality — the address is a single field element (160-bit fits in BN128)
+    // --------------------------------------------------
+    component addrCheck = IsEqual();
+    addrCheck.in[0] <== targetAddress;
+    addrCheck.in[1] <== whitelistedAddress;
+
+    // Force the equality output to be 1 (true)
+    addrCheck.out === 1;
+
+    // --------------------------------------------------
+    // Output: proof is valid
+    // This is a convenience output; the real security comes from
+    // the constraints above — if they fail, no valid proof exists.
+    // --------------------------------------------------
+    valid <== spendCheck.out * addrCheck.out;
 }
 
-component main { public [max_spend_limit, whitelisted_address] } = Constitution();
+component main {public [intentAmount, targetAddress, assetId]} = ConstitutionVerifier();

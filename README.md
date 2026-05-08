@@ -188,52 +188,274 @@ bash compile.sh
 
 **Option A — Via Dashboard (recommended):**
 ```bash
-cd mission-control
+
 npm run dev
-# Open http://localhost:3000 → Click "Spawn Agent"
 ```
-
-**Option B — CLI only:**
-```bash
-cd ai-orchestrator
-npx ts-node --transpile-only src/agent.ts
-```
-
-Both options produce real on-chain transactions on Galileo.
+Open [http://localhost:3001](http://localhost:3001) to start spawning agents!
 
 ---
 
-## How It Works — End-to-End Flow
+## Pipeline Status
+
+> **~90% Real on Galileo Testnet** — Full end-to-end ZK pipeline migrated from SP1 to Snarkjs for on-chain verification.
+
+| Stage | Status | Notes |
+|---|---|---|
+| MPC Shard → 0G Storage | ✅ Real | Shamir 2-of-3 split, encrypted, pinned to 0G Turbo indexer |
+| Agent Registration on-chain | ✅ Real | AgentRegistry contract on Chain 16602 |
+| AI Intent → 0G DA | ✅ Real | Real Galileo DA nodes |
+| Final Settlement on-chain | ✅ Real | `AgentRegistry.logIntent()` TX confirmed |
+| ZK Proof (Groth16) | ✅ Real | circom 2.0 circuit, snarkjs Groth16, deployed Verifier.sol |
+
+---
+
+## Architecture
+
+| Module | Stack | Role |
+|---|---|---|
+| `contracts/` | Solidity + Hardhat | On-chain Agent Registry and Groth16 Verifier |
+| `zk-engine/` | Circom 2.x + snarkjs (Groth16) | ZK circuit validating agent intent against its Constitution |
+| `ai-orchestrator/` | TypeScript + snarkjs + `@0gfoundation/0g-ts-sdk` | Agent brain: proving logic, 0G Storage, 0G DA |
+| `mission-control/` | Next.js 15 + Tailwind | Operator dashboard: spawn agents, monitor ZK status |
+
+---
+
+## Repository Structure
 
 ```
-User clicks "Spawn Agent"
+OGsovergienkey/
+├── contracts/                   # Solidity smart contracts (Hardhat)
+│   ├── contracts/
+│   │   ├── AgentRegistry.sol    # Core registry + intent logger
+│   │   ├── Verifier.sol         # Groth16 Verifier (exported from circom/snarkjs)
+│   │   ├── interfaces/
+│   │   │   └── IZKVerifier.sol
+│   │   └── mock/
+│   │       └── MockZKVerifier.sol
+│   ├── hardhat.config.ts
+│   └── package.json
+├── zk-engine/                   # circom + snarkjs: Groth16 ZK proving
+│   ├── circuits/
+│   │   ├── constitution.circom  # ZK circuit (constraint definitions)
+│   │   └── compile.sh           # Circuit compilation script
+│   └── test/                    # Circuit tests
+├── ai-orchestrator/             # TypeScript: Agent brain + 0G SDK
+│   ├── src/
+│   │   ├── agent.ts             # Orchestrator entry point
+│   │   ├── prover.ts            # Snarkjs proof generation wrapper
+│   │   └── 0g-service.ts        # 0G Storage & DA client
+│   └── .env.example
+├── mission-control/             # Next.js: Operator dashboard
+│   └── src/app/page.tsx
+├── ARCHITECTURE.md              # Detailed technical deep-dive
+├── report.md                    # Auto-generated spawn execution log
+└── RUN_GUIDE.md                 # Quick-start run guide
+```
+
+---
+
+## Prerequisites
+
+Install all of the following before touching any module. Each module has its own runtime — missing one will break that layer.
+
+| Tool | Version | Purpose |
+|---|---|---|
+| Node.js | >= 20.x | Required by all modules (contracts, ai-orchestrator, mission-control, zk-engine) |
+| npm | >= 9.x | Package manager (yarn or pnpm also work) |
+| circom | v2.1.x | Circuit compiler for the ZK engine |
+| Git | any recent | Clone the repo |
+
+### Install circom compiler
+
+Install globally via npm:
+
+```bash
+npm install -g circom@latest
+```
+
+Or download the binary from the [circom GitHub releases page](https://github.com/iden3/circom/releases).
+
+---
+
+## Module 1 — Smart Contracts
+
+`contracts/` · Solidity 0.8.24 · Hardhat 2.22
+
+### What It Does
+
+Deploys three contracts to the 0G Galileo EVM chain:
+- **`AgentRegistry.sol`** — mints agent identity records, stores the MPC public key and 0G Storage hash of the agent's Constitution, and accepts ZK proof submissions via `logIntent()`
+- **`Verifier.sol`** — real Groth16 verifier auto-generated from snarkjs — verifies proofs on-chain
+- **`MockZKVerifier.sol`** — accepts any proof for local/hackathon testing
+
+### Setup
+
+```bash
+cd contracts
+npm install
+```
+
+Configure `hardhat.config.ts` — replace the placeholder private key and verify the network:
+
+```ts
+// hardhat.config.ts
+const PRIVATE_KEY = "0xYOUR_PRIVATE_KEY_HERE";
+
+networks: {
+  "0g-galileo": {
+    url: "https://evmrpc-testnet.0g.ai",
+    chainId: 16602,
+    accounts: [PRIVATE_KEY]
+  }
+}
+```
+
+> [!WARNING]
+> Never commit your real private key. Use a `.env` file (already in `.gitignore`) and load it with `dotenv`.
+
+```bash
+npx hardhat compile     # builds artifacts/ and typechain-types/
+npx hardhat test        # runs test suite
+npx hardhat run scripts/deploy.ts --network 0g-galileo
+```
+
+---
+
+## Module 2 — ZK Engine
+
+`zk-engine/` · circom 2.1.x · snarkjs 0.7.x (Groth16)
+
+### What It Does
+
+This is the privacy layer. It compiles a circom circuit into R1CS constraints and uses snarkjs to generate Groth16 proofs. The circuit takes two categories of inputs:
+- **Private** (the agent's Constitution): `max_spend_limit`, `whitelisted_address`
+- **Public** (the agent's proposed intent): `amount`, `target`, `asset`
+
+If both constraints pass, a Groth16 proof is generated. The proof is extremely small (~256 bytes) and can be verified on-chain via the deployed `Verifier.sol` contract.
+
+### Setup & Build
+
+```bash
+cd zk-engine/circuits
+./compile.sh
+```
+
+This will:
+1. Compile the circom circuit to R1CS + WASM
+2. Run the Powers of Tau ceremony
+3. Generate the proving key (zkey) and verification key
+4. Export the Groth16Verifier.sol Solidity contract
+
+> [!IMPORTANT]
+> The `build/` directory is gitignored. You must run the compile script before generating proofs. The trusted setup only needs to run once per circuit change.
+
+### Modifying the Constitution rules
+
+The constitution and intent are hardcoded in `ai-orchestrator/src/prover.ts` for the hackathon demo. To test a violation, change `intentAmount` to something above 1000 and re-run — proof generation will fail because no valid witness exists. To deploy this in production, feed constitution and intent as runtime inputs from the AI Orchestrator.
+
+---
+
+## Module 3 — AI Orchestrator
+
+`ai-orchestrator/` · TypeScript · `@0gfoundation/0g-ts-sdk` v1.2.6 · ethers v6
+
+### What It Does
+
+The agent's brain. Handles the complete lifecycle:
+1. Generates an MPC shard and uploads it to **0G Storage** (real on-chain TX)
+2. Registers the agent on the **AgentRegistry** contract (real on-chain TX)
+3. Formulates an AI intent and posts it to **0G DA** as immutable memory (real on-chain TX)
+4. Triggers the ZK prover, then settles the proof and DA reference on-chain (real on-chain TX)
+
+Includes a resilient **`waitForReceipt()` RPC helper** that handles the Galileo dev RPC quirk of returning `-32000` instead of `null` for unconfirmed transactions, falling back to manual polling with a 5-minute timeout.
+
+### Setup
+
+```bash
+cd ai-orchestrator
+npm install
+```
+
+Copy the example env file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+See `.env.example` for all variables with inline documentation. Minimum required:
+
+```env
+PRIVATE_KEY=0xYOUR_PRIVATE_KEY
+RPC_ENDPOINT=https://evmrpc-testnet.0g.ai/
+INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+```
+
+### Run
+
+The orchestrator is invoked by the Mission Control API — not run directly. To test in isolation:
+
+```bash
+npx ts-node --transpile-only src/agent.ts
+```
+
+Results are automatically appended to `report.md` in the repo root.
+
+---
+
+## Module 4 — Mission Control Dashboard
+
+`mission-control/` · Next.js 15 · React 19 · Tailwind CSS v4
+
+### What It Does
+
+The operator-facing dashboard. Features:
+- **Spawn Agent** — triggers the full pipeline end-to-end with real-time telemetry
+- **Network Status** — live wallet balance, block height, and 0G Galileo connectivity
+- **Intent Log** — shows each spawned agent's ID, DA root hash, and TX hashes
+- **ZK Status** — proving duration and proof mode (Mock / Network)
+
+### Setup
+
+```bash
+cd mission-control
+npm install
+npm run dev       # http://localhost:3001
+```
+
+---
+
+## End-to-End Execution Flow
+
+```
+User clicks "Spawn Agent" in Mission Control
          │
          ▼
 Phase 1: GENESIS
-  ├─ Ephemeral keypair generated
-  ├─ Private key split into 3 shards (Shamir 2-of-3)
-  ├─ Shard 1 uploaded to 0G Storage → real TX ✅
+  ├─ MPC shard generated (Shamir 2-of-3)
+  ├─ Shard uploaded to 0G Storage (Turbo indexer) → real TX ✅
   └─ Agent registered in AgentRegistry.sol → real TX ✅
          │
          ▼
-Phase 2: INTENT + ZK PROVING
-  ├─ Intent struct built (amount, target, asset)
-  ├─ Constitution rules loaded (max_spend_limit, whitelist)
-  ├─ Groth16 proof generated by snarkjs (~1.5s)
-  └─ Proof verified locally before submission
+Phase 2: INTENT FORMATION
+  └─ Intent struct built (amount, target, asset_id)
          │
          ▼
-Phase 3: DA COMMIT
-  └─ Raw intent posted to 0G DA → real TX ✅
+Phase 3: ZK PROVING
+  ├─ Inputs prepared for circom/snarkjs Groth16 circuit
+  ├─ Circuit verifies: intentAmount <= maxSpendLimit AND targetAddress === whitelistedAddress
+  └─ Groth16 proof generated (points A, B, C + public signals)
          │
          ▼
-Phase 4: ON-CHAIN SETTLEMENT
-  ├─ AgentRegistry.logIntent() called with (proof, pubSignals, daRoot)
-  ├─ Verifier.sol checks Groth16 proof on-chain
-  └─ If valid → IntentLogged event emitted → real TX ✅
+Phase 4: DA COMMITMENT
+  └─ Raw intent posted to 0G DA as tamperproof memory log → real TX ✅
          │
          ▼
-  🚀 MISSION SUCCESSFUL — logged to report.md
+Phase 5: SETTLEMENT
+  ├─ Groth16 proof verified on-chain by Verifier.sol
+  └─ AgentRegistry.logIntent(agentId, daRoot, pA, pB, pC, pubSignals) → real TX ✅
+         │
+         ▼
+  🚀 MISSION SUCCESSFUL — result appended to report.md
 ```
 
 ---
@@ -241,58 +463,58 @@ Phase 4: ON-CHAIN SETTLEMENT
 ## Deployed Contracts (0G Galileo Testnet)
 
 | Contract | Address | Explorer |
-|---|---|---|
-| AgentRegistry | `0xA480C11842404b36481524cE9dAAC830EeC60e32` | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0xA480C11842404b36481524cE9dAAC830EeC60e32) |
-| Verifier (Groth16) | `0x1972f5024a4A480cE9b248F7179826dACe393335` | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x1972f5024a4A480cE9b248F7179826dACe393335) |
-| 0G Storage Flow | `0x22E03a6A89B950F1c82ec5e74F8eCa321a105296` | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x22E03a6A89B950F1c82ec5e74F8eCa321a105296) |
+|---|---|---|cd mission-control
+| AgentRegistry | [`0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989`](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989) |
+| Verifier (Groth16) | [`0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9`](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) | [View on Chainscan](https://chainscan-galileo.0g.ai/address/0xd9C4d2FE3a4362db2A05aFA3d51934E2C31E9Ba9) |
 
 ---
 
-## The ZK Constitution Circuit
+## Configuration Reference
 
-The heart of SAK. This Circom circuit enforces two hard constraints:
-
-```circom
-// 1. Target must be on the whitelist
-target_address === whitelisted_address;
-
-// 2. Amount must not exceed the spending cap
-component leq = LessEqThan(64);
-leq.in[0] <== intent_amount;
-leq.in[1] <== max_spend_limit;
-leq.out === 1;
-```
-
-**Private inputs:** `intent_amount`, `target_address` (the agent's actual intent — never revealed)
-**Public inputs:** `max_spend_limit`, `whitelisted_address` (the rules — visible to everyone)
-
-The proof says: *"I have a valid intent that satisfies these public rules"* — without revealing what the intent actually is.
+| Module | Config File / Variable |
+|---|---|
+| `contracts/` | `hardhat.config.ts` → `PRIVATE_KEY`, `url`, `chainId` |
+| `ai-orchestrator/` | `.env` → `PRIVATE_KEY`, `RPC_ENDPOINT`, `STORAGE_NODE_URL`, `INDEXER_URL` |
+| `zk-engine/` | `circuits/constitution.circom` → constraint parameters |
+| `mission-control/` | `page.tsx` → `agents[]` (swap for live contract reads via wagmi) |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---|---|
-| `Cannot find module 'snarkjs'` | Run `npm install` in `ai-orchestrator/` |
-| `Missing RPC_ENDPOINT or PRIVATE_KEY` | Create `.env` in both `ai-orchestrator/` AND `mission-control/` |
-| `require(false)` on `registerAgent()` | Your wallet isn't the contract owner or an authorized operator. Ask the owner to call `setOperator(yourAddress, true)` |
-| `ZK Proof is invalid` on settlement | Circuit artifacts don't match the deployed Verifier. Recompile circuits (`compile.sh`) and redeploy Verifier |
-| `-32000: no matching receipts found` | Known Galileo RPC quirk. The `waitForReceipt()` helper handles this automatically |
-| Dashboard shows "Syncing" | 0G Testnet may be under load. Click the refresh icon or wait |
-| `npx hardhat compile` fails | Run `npm install @openzeppelin/contracts` in `contracts/` |
+**`circom: command not found`**
+
+Install the circom compiler globally:
+```bash
+npm install -g circom@latest
+```
+Or download the binary from https://github.com/iden3/circom/releases
+
+**`0G Storage: Failed to submit transaction`**
+- Ensure your wallet has > 0.1 0G tokens (get from [faucet.0g.ai](https://faucet.0g.ai))
+- Verify `INDEXER_URL` points to the Galileo turbo indexer (not the Newton standard indexer — it is dead)
+
+**`eth_getTransactionReceipt: no matching receipts found` (-32000)**
+- This is a known quirk of the Galileo dev RPC node returning an error code instead of `null` for unconfirmed transactions
+- The orchestrator's `waitForReceipt()` helper handles this automatically via manual polling — no action needed
+
+**Hardhat compilation errors**
+- Ensure Node.js >= 20: `node --version`
+- Run `npm install` inside `contracts/`, not the repo root
+
+**Next.js port conflict**
+```bash
+PORT=3001 npm run dev
+```
 
 ---
 
-## Why 0G Labs?
+## Known Limitations
 
-We use **three** distinct 0G primitives — this is a deep integration, not a wrapper:
-
-| 0G Layer | What SAK Uses It For |
+| Limitation | Detail |
 |---|---|
-| **0G Storage** | Stores MPC key shards. Decentralised, immutable, high-availability retrieval. |
-| **0G DA** | The agent's immutable memory. Every intent is logged before settlement — permanent audit trail without on-chain gas costs. |
-| **0G Chain (EVM)** | Source of truth. Agent identity (AgentRegistry), ZK verification (Verifier.sol), and intent settlement all anchor here. |
+| ZK Build Artifacts Not Committed | The `zk-engine/build/` directory (compiled circuit, zkeys, WASM) is gitignored. Every contributor must run the compile script before generating proofs. |
+| Dev RPC Only | `evmrpc-testnet.0g.ai` is flagged by 0G docs as not for production. |
 
 ---
 
@@ -304,6 +526,8 @@ We use **three** distinct 0G primitives — this is a deep integration, not a wr
 | Galileo Chain Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) |
 | Galileo Storage Explorer | [storagescan-galileo.0g.ai](https://storagescan-galileo.0g.ai) |
 | 0G Docs | [docs.0g.ai](https://docs.0g.ai) |
+| snarkjs Docs | [github.com/iden3/snarkjs](https://github.com/iden3/snarkjs) |
+| circom Docs | [docs.circom.io](https://docs.circom.io) |
 | 0G Faucet | [faucet.0g.ai](https://faucet.0g.ai) |
 | snarkjs | [github.com/iden3/snarkjs](https://github.com/iden3/snarkjs) |
 | Circom Docs | [docs.circom.io](https://docs.circom.io) |
