@@ -102,8 +102,8 @@ export const AGENT_REGISTRY_ABI = [
 export const DEPLOYED_ADDRESSES = {
   // 0G Galileo Testnet (chain ID 16602)
   "0g-testnet": {
-    AgentRegistry: "0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989",
-    MockZKVerifier: "0x249FDe03972b58fE1a39fa7049a40Ec904787165",
+    AgentRegistry: "0x8359FBd8461d0cd14a39F728d7f1BbE585bF0dC9",
+    MockZKVerifier: "0xA754961547ADF690cB070007e96710344760Bb28",
   },
 } as const;
 

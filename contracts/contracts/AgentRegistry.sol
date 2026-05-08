@@ -89,24 +89,24 @@ contract AgentRegistry is Ownable {
      *
      * @param agentId      The agent submitting the intent
      * @param intentDataId A reference ID to the raw intent data stored on 0G DA
-     * @param _pA          Groth16 proof point A
-     * @param _pB          Groth16 proof point B
-     * @param _pC          Groth16 proof point C
-     * @param _pubSignals  Public signals: [intentAmount, targetAddress, assetId, valid]
+     * @param pA           Groth16 proof point A
+     * @param pB           Groth16 proof point B
+     * @param pC           Groth16 proof point C
+     * @param pubSignals   Public signals: [intentAmount, targetAddress, assetId, valid]
      */
     function logIntent(
-        uint256 agentId,
-        string memory intentDataId,
-        uint[2] calldata _pA,
-        uint[2][2] calldata _pB,
-        uint[2] calldata _pC,
-        uint[4] calldata _pubSignals
+        uint256 agentId, 
+        string memory intentDataId, 
+        uint[2] memory pA, 
+        uint[2][2] memory pB, 
+        uint[2] memory pC, 
+        uint[4] memory pubSignals
     ) external {
         require(agents[agentId].owner == msg.sender, "Not the agent owner");
         require(agents[agentId].isActive, "Agent is inactive");
         
-        // 1. Verify the Groth16 proof on-chain
-        bool isValid = verifier.verifyProof(_pA, _pB, _pC, _pubSignals);
+        // 1. Send proof into the Verifier contract
+        bool isValid = verifier.verifyProof(pA, pB, pC, pubSignals);
         require(isValid, "ZK Proof is invalid");
 
         // 2. If valid, log the intent to the registry memory 

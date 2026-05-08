@@ -42,20 +42,33 @@ export class ZeroGService {
         
         let tx: any = null;
         let lastErr = null;
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 2; i++) { // Reduced to 2 attempts for faster dashboard response
           console.log(`[${label}] Upload attempt ${i + 1}...`);
-          const [resultTx, resultErr] = await this.indexer.upload(file, this.rpcEndpoint, this.wallet);
-          if (resultErr === null) { 
-            tx = resultTx; 
-            break; 
+          
+          try {
+            // Add a 15s timeout to the upload call itself
+            const uploadPromise = this.indexer.upload(file, this.rpcEndpoint, this.wallet);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Request Timeout (15s)")), 15000)
+            );
+
+            const [resultTx, resultErr] = await Promise.race([uploadPromise, timeoutPromise]) as [any, any];
+            
+            if (resultErr === null) { 
+              tx = resultTx; 
+              break; 
+            }
+            lastErr = resultErr;
+          } catch (e) {
+            lastErr = e;
           }
-          lastErr = resultErr;
+
           const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
-          console.warn(`[${label}] Failed attempt ${i+1}/3: ${msg}. Retrying in 5s...`);
-          await sleep(5000);
+          console.warn(`[${label}] Failed attempt ${i+1}/2: ${msg}. Retrying in 3s...`);
+          await sleep(3000);
         }
         
-        if (!tx) throw new Error(`Upload failed after 3 retries: ${lastErr}`);
+        if (!tx) throw new Error(`Upload failed after retries: ${lastErr}`);
         console.log(`[${label}] ✓ Uploaded. Root: ${rootHash}, TX: ${tx?.txHash ?? tx}`);
         return rootHash;
     }

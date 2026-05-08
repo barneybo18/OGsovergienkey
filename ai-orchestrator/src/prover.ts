@@ -21,9 +21,9 @@ export interface Groth16ProofResult {
  * NOT packed bytes — the Solidity contract expects separate (pA, pB, pC, pubSignals) arrays.
  */
 export async function generateProof(
-    intentAmount: number, 
-    targetAddress: string, 
-    maxSpendLimit: number, 
+    intentAmount: number,
+    targetAddress: string,
+    maxSpendLimit: number,
     whitelistedAddress: string
 ): Promise<Groth16ProofResult> {
     // 1. Resolve paths for the circuit artifacts
@@ -53,7 +53,7 @@ export async function generateProof(
         console.warn(`[ZK-Prover] ⚠️  RUNNING IN MOCK MODE — circuit artifacts not found.`);
         console.warn(`[ZK-Prover]     Missing: ${!fs.existsSync(wasmPath) ? wasmPath : ''} ${!fs.existsSync(zkeyPath) ? zkeyPath : ''}`);
         console.warn(`[ZK-Prover] ⚠️  Real on-chain verification WILL FAIL with the real Verifier.`);
-        console.warn(`[ZK-Prover] ⚠️  Fix: install circom (npm i -g circom) then run: cd zk-engine/circuits && bash compile.sh`);
+        console.warn(`[ZK-Prover] ⚠️  Fix: install circom then run: cd zk-engine/circuits && bash compile.sh`);
         // Return dummy non-zero proof points for the MockZKVerifier
         // MockZKVerifier requires: pA non-zero AND pubSignals[3] == 1
         return {
@@ -67,9 +67,20 @@ export async function generateProof(
     try {
         const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
 
+        // Verify locally first to ensure artifacts are correct
+        const vKeyPath = path.resolve(__dirname, "../../zk-engine/circuits/verification_key.json");
+        if (fs.existsSync(vKeyPath)) {
+            const vKey = JSON.parse(fs.readFileSync(vKeyPath, "utf-8"));
+            const res = await snarkjs.groth16.verify(vKey, publicSignals, proof);
+            if (res !== true) {
+                throw new Error("ZK Proof generated locally is INVALID. Check circuit logic or artifacts.");
+            }
+            console.log(`[ZK-Prover] ✅ Local verification passed.`);
+        }
+
         console.log(`[ZK-Prover] Exporting Solidity calldata...`);
         const calldata = await snarkjs.groth16.exportSolidityCallData(proof, publicSignals);
-        
+
         // Parse the Solidity calldata string from snarkjs into typed arrays
         // Groth16 calldata format: [pA[2], pB[2][2], pC[2], pubSignals[]]
         const calldataArr = JSON.parse("[" + calldata + "]");
@@ -93,6 +104,8 @@ export async function generateProof(
 
         return { pA, pB, pC, pubSignals };
     } catch (error) {
+        if (error instanceof Error && error.message.includes("INVALID")) throw error;
+
         console.warn(`[ZK-Prover] ⚠️  Proof generation failed: ${error}`);
         console.warn(`[ZK-Prover] ⚠️  Falling back to MOCK MODE.`);
         // Return dummy non-zero proof points for the MockZKVerifier

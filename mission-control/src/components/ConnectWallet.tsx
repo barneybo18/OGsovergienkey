@@ -38,19 +38,21 @@ export function ConnectWallet() {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="glass-panel px-4 py-2 rounded-full flex items-center gap-3"
+          className="glass-panel px-4 py-2 rounded-full flex items-center gap-3 relative group cursor-pointer"
+          onClick={() => disconnect()}
+          title="Disconnect Wallet"
         >
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-sm font-mono text-white/80">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse group-hover:bg-red-400 transition-colors" />
+          <span className="text-sm font-mono text-white/80 group-hover:text-white/60 transition-colors">
             {address.slice(0, 6)}...{address.slice(-4)}
           </span>
-          <button
-            onClick={() => disconnect()}
-            className="text-white/40 hover:text-red-400 transition-colors"
-            title="Disconnect"
-          >
+          <span className="text-white/40 group-hover:text-red-400 transition-colors">
             <LogOut className="w-4 h-4" />
-          </button>
+          </span>
+          {/* Tooltip */}
+          <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg bg-black/90 border border-white/10 text-[11px] text-white/80 font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+            Disconnect Wallet
+          </span>
         </motion.div>
       </div>
     );
@@ -65,10 +67,15 @@ export function ConnectWallet() {
         const connector = connectors[0];
         if (connector) connect({ connector });
       }}
-      className="glass-panel px-6 py-3 rounded-full flex items-center gap-2 hover:bg-white/5 active:scale-95 transition-all text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed border-brand-cyan/30"
+      title="Connect Wallet"
+      className="glass-panel px-6 py-3 rounded-full flex items-center gap-2 hover:bg-white/5 active:scale-95 transition-all text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed border-brand-cyan/30 relative group"
     >
       <Wallet className="w-5 h-5 text-brand-cyan" />
       {isPending ? "Connecting..." : "Connect Wallet"}
+      {/* Tooltip */}
+      <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg bg-black/90 border border-white/10 text-[11px] text-white/80 font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+        Connect Wallet
+      </span>
     </motion.button>
   );
 }
