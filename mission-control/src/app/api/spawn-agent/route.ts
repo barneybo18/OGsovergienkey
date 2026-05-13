@@ -1,79 +1,87 @@
 import { NextResponse } from "next/server";
 import path from "path";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 import fs from "fs";
 
-const execAsync = promisify(exec);
+// Fire-and-forget runner: starts the ZK proof process and returns immediately.
+// The UI polls /api/get-agents until the new agent appears on-chain.
+function fireAndForget(command: string, args: string[], cwd: string) {
+  const child = spawn(command, args, {
+    cwd,
+    env: { ...process.env, TS_NODE_TRANSPILE_ONLY: "true", NODE_OPTIONS: "--max-old-space-size=4096" },
+    shell: true,
+    detached: false,
+  });
+
+  let stdout = "";
+
+  child.stdout?.on("data", (d) => {
+    stdout += d.toString();
+    console.log(`[ZK-Spawn] ${d.toString().trim()}`);
+  });
+
+  child.stderr?.on("data", (d) => {
+    const msg = d.toString();
+    // Only log real errors, not ts-node init messages
+    if (msg.includes("Error") || msg.includes("FATAL")) {
+      console.error(`[ZK-Spawn STDERR] ${msg.trim()}`);
+    }
+  });
+
+  child.on("close", (code) => {
+    if (code === 0) {
+      const agentIdMatch = stdout.match(/AGENT_ID: (\d+)/);
+      const txMatch = stdout.match(/TX: (0x[a-fA-F0-9]+)/);
+      console.log(`[ZK-Spawn] ✅ Agent spawned! ID: ${agentIdMatch?.[1] ?? "?"}, TX: ${txMatch?.[1] ?? "?"}`);
+    } else {
+      console.error(`[ZK-Spawn] ❌ Process exited with code ${code}`);
+    }
+  });
+
+  child.on("error", (err) => {
+    console.error("[ZK-Spawn] spawn error:", err.message);
+  });
+}
 
 export async function POST(request: Request) {
   try {
     const { name } = await request.json();
 
-    // 1. Input Validation
     if (!name || typeof name !== "string") {
       return NextResponse.json({ success: false, message: "Valid agent name is required" }, { status: 400 });
     }
 
-    // 2. Resolve absolute path for orchestrator
     const orchestratorPath = path.resolve(process.cwd(), "..", "ai-orchestrator");
-    
-    console.log(`[API] Triggering E2E Flow for agent: ${name}`);
 
     if (!fs.existsSync(orchestratorPath)) {
-        throw new Error(`Orchestrator directory not found at: ${orchestratorPath}`);
+      return NextResponse.json({
+        success: false,
+        message: `Orchestrator directory not found at: ${orchestratorPath}`,
+      }, { status: 500 });
     }
 
-    // 3. Execution (Using ts-node transpile-only for speed)
-    // Timeout: 10 minutes (Groth16 proving typically takes 10-60s, network calls add some buffer)
-    // maxBuffer: 50MB to prevent stdout accumulation from consuming RAM
-    const command = `npx ts-node --transpile-only src/agent.ts`;
-    console.log(`[API] Executing command: ${command} in ${orchestratorPath}`);
+    console.log(`[API] Firing ZK genesis for agent: ${name}`);
 
-    const startTime = Date.now();
-    const { stdout, stderr } = await execAsync(command, {
-      cwd: orchestratorPath,
-      timeout: 600000,       // 10 minutes
-      maxBuffer: 50 * 1024 * 1024,  // 50MB stdout buffer cap
-      env: { ...process.env, TS_NODE_TRANSPILE_ONLY: "true", NODE_OPTIONS: "--max-old-space-size=4096" }
-    });
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-    console.log(`[API] Orchestrator finished in ${duration}s`);
-
-    if (stderr && stderr.includes("Error")) {
-        console.error(`[API] Orchestrator Stderr: ${stderr}`);
-    }
-
-    // 4. Pattern matching for real telemetry and metrics
-    const agentIdMatch = stdout.match(/AGENT_ID: (\d+)/);
-    const rootHashMatch = stdout.match(/ROOT_HASH: ([^\n\r]+)/);
-    const provingTimeMatch = stdout.match(/PROVING_DURATION: ([^\n\r]+)/);
-    const txHashMatch = stdout.match(/TX: (0x[a-fA-F0-9]+)/);
+    // Kick off proving in background — return immediately.
+    // The UI polls /api/get-agents every few seconds until the new agent appears.
+    fireAndForget(
+      "npx",
+      ["-y", "ts-node", "--transpile-only", "src/agent.ts", name],
+      orchestratorPath
+    );
 
     return NextResponse.json({
       success: true,
-      name: name,
-      agentId: agentIdMatch ? agentIdMatch[1] : "N/A",
-      rootHash: rootHashMatch ? rootHashMatch[1] : "N/A",
-      provingTime: provingTimeMatch ? provingTimeMatch[1] : "N/A",
-      txHash: txHashMatch ? txHashMatch[1] : "N/A",
-      logs: stdout,
-      message: "Sovereign Agent E2E Flow Completed Successfully",
+      name,
+      message: "Agent genesis dispatched. ZK proof is being generated and will settle on 0G Galileo (~60s). Your fleet will update automatically.",
     });
 
   } catch (error: unknown) {
-    const err = error as { signal?: string; code?: string; message?: string };
-    console.error("[API] Spawn Error Detail:", err);
-    
-    const isTimeout = err.signal === "SIGTERM" || err.code === "ETIMEDOUT";
-    const errorMessage = isTimeout 
-        ? "ZK Proving timed out (exceeded 10 minutes). Your system may not have enough free RAM — close other apps and retry." 
-        : (err.message || "Internal server error during agent spawning");
-
+    const err = error as { message?: string };
+    console.error("[API] Spawn Dispatch Error:", err.message || err);
     return NextResponse.json({
       success: false,
-      message: errorMessage,
+      message: err.message || "Internal server error during agent spawn dispatch",
     }, { status: 500 });
   }
 }

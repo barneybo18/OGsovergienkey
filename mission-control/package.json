@@ -9,7 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.99.0",
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@tanstack/react-query": "^5.100.9",
     "clsx": "^2.1.1",
     "ethers": "^6.16.0",
     "framer-motion": "^12.38.0",
@@ -21,8 +22,8 @@
     "tailwind-merge": "^3.5.0",
     "three": "^0.184.0",
     "vanta": "^0.5.24",
-    "viem": "^2.48.0",
-    "wagmi": "^3.6.2"
+    "viem": "^2.48.11",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

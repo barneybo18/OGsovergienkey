@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, ShieldCheck, Cpu } from "lucide-react";
+import { Copy, ShieldCheck, Cpu, User } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useAccount } from "wagmi";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -22,6 +23,9 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ name, id, rootHash, pubKeyHash, owner, zkStatus, txHash, className, onClick }: AgentCardProps) {
+  const { address } = useAccount();
+  const isOwner = address && owner && address.toLowerCase() === owner.toLowerCase();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -35,10 +39,17 @@ export function AgentCard({ name, id, rootHash, pubKeyHash, owner, zkStatus, txH
       <div className="flex items-center justify-between border-b border-white/5 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-brand-cyan/10 flex items-center justify-center border border-brand-cyan/30">
-            <Cpu className="text-[var(--color-brand-cyan)] w-5 h-5" />
+            <Cpu className="text-brand-cyan w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold tracking-wide text-white font-display">{name}</h3>
+            <h3 className="text-lg font-semibold tracking-wide text-white font-display flex items-center gap-2">
+              {name}
+              {isOwner && (
+                <span className="px-1.5 py-0.5 rounded-md bg-brand-purple/20 text-brand-purple text-[8px] font-bold uppercase tracking-tighter flex items-center gap-1">
+                  <User size={8} /> You
+                </span>
+              )}
+            </h3>
             <p className="text-xs text-white/40 uppercase tracking-widest font-mono">{id}</p>
           </div>
         </div>
@@ -57,10 +68,10 @@ export function AgentCard({ name, id, rootHash, pubKeyHash, owner, zkStatus, txH
       <div className="flex flex-col gap-4 pt-2">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-white/50 uppercase tracking-wider font-semibold">Latest Memory Log (0G DA)</span>
-          <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex items-center justify-between group-hover:border-[var(--color-brand-cyan)]/30 transition-colors">
+          <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex items-center justify-between group-hover:border-brand-cyan/30 transition-colors">
             <span className="text-xs font-mono text-white/80 truncate w-4/5">{rootHash}</span>
             <button 
-              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(rootHash).then(() => alert('Copied!'))}}
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(rootHash)}}
               className="text-white/40 hover:text-white transition-colors"
               title="Copy root hash"
             >
@@ -82,7 +93,7 @@ export function AgentCard({ name, id, rootHash, pubKeyHash, owner, zkStatus, txH
                 {txHash}
               </a>
               <button 
-                onClick={(e) => { e.stopPropagation(); txHash && navigator.clipboard.writeText(txHash).then(() => alert('Copied!'))}}
+                onClick={(e) => { e.stopPropagation(); txHash && navigator.clipboard.writeText(txHash)}}
                 className="text-white/40 hover:text-white transition-colors"
                 title="Copy TX hash"
               >

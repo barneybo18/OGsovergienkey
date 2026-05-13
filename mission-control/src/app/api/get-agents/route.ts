@@ -24,8 +24,9 @@ export async function GET() {
 
     // Filter events by the owner (our wallet)
     const filter = registry.filters.AgentRegistered(null, wallet.address);
-    // Scan last 100,000 blocks (Galileo is young)
-    const events = await registry.queryFilter(filter, -5000);
+    // Scan from block 0 so ALL historically registered agents are always returned,
+    // regardless of when they were spawned (fixes agents disappearing on server restart).
+    const events = await registry.queryFilter(filter, 0);
 
     const agents = events.map(event => {
         // Event args: agentId, owner, pubKeyHash, constitutionHash

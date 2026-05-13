@@ -18,8 +18,17 @@ contract AgentRegistry is Ownable {
         bool isActive;
     }
 
+    struct Task {
+        uint256 id;
+        string instruction;
+        string result;
+        uint256 timestamp;
+        bool completed;
+    }
+
     uint256 public nextAgentId;
     mapping(uint256 => Agent) public agents;
+    mapping(uint256 => Task[]) public agentTasks;
     
     // Reference to the Zero Knowledge Verifier Contract (Groth16)
     IZKVerifier public verifier;
@@ -30,6 +39,7 @@ contract AgentRegistry is Ownable {
     event ConstitutionUpdated(uint256 indexed agentId, bytes32 newConstitutionHash);
     event IntentLogged(uint256 indexed agentId, string intentDataId);
     event AgentDeactivated(uint256 indexed agentId);
+    event TaskExecuted(uint256 indexed agentId, uint256 taskId, string instruction);
 
     modifier onlyAuthorized() {
         require(authorizedOperators[msg.sender] || msg.sender == owner(), "Not authorized");
@@ -83,6 +93,10 @@ contract AgentRegistry is Ownable {
         return agents[agentId];
     }
 
+    function getAgentTasks(uint256 agentId) external view returns (Task[] memory) {
+        return agentTasks[agentId];
+    }
+
     /**
      * @dev Logs an agent intent. Requires a valid Groth16 ZK proof confirming
      *      that the intent adheres to the current constitution.
@@ -113,5 +127,38 @@ contract AgentRegistry is Ownable {
         // Note: Actual intent execution happens natively via MPC signing, 
         // This transaction serves as the verifiable log entry on the 0G Chain.
         emit IntentLogged(agentId, intentDataId);
+    }
+
+    /**
+     * @dev Executes a task for an agent. Verifies the ZK proof against the constitution.
+     */
+    function executeTask(
+        uint256 agentId,
+        string calldata instruction,
+        string calldata result,
+        bytes calldata proof
+    ) external {
+        require(agents[agentId].owner == msg.sender, "Not the agent owner");
+        require(agents[agentId].isActive, "Agent is inactive");
+
+        // Decode proof components (Groth16 format)
+        (uint[2] memory pA, uint[2][2] memory pB, uint[2] memory pC, uint[4] memory pubSignals) = 
+            abi.decode(proof, (uint[2], uint[2][2], uint[2], uint[4]));
+
+        // 1. Verify ZK Proof
+        bool isValid = verifier.verifyProof(pA, pB, pC, pubSignals);
+        require(isValid, "ZK Proof is invalid");
+
+        // 2. Record the Task
+        uint256 taskId = agentTasks[agentId].length;
+        agentTasks[agentId].push(Task({
+            id: taskId,
+            instruction: instruction,
+            result: result,
+            timestamp: block.timestamp,
+            completed: true
+        }));
+
+        emit TaskExecuted(agentId, taskId, instruction);
     }
 }

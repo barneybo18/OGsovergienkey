@@ -5,9 +5,21 @@ import { AgentDetailModal } from "@/components/AgentDetailModal";
 import { TerminalLog } from "@/components/TerminalLog";
 import { StatsCard } from "@/components/StatsCard";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Sparkles, Activity, Loader2, Wallet, Cpu, Network, RotateCw } from "lucide-react";
+import { Shield, Sparkles, Activity, Loader2, Wallet, Cpu, Network, RotateCw, PlusCircle } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+const formatTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m > 0 ? `${m}m ` : ""}${s}s`;
+};
 
 interface Agent {
   name: string;
@@ -32,15 +44,38 @@ interface NetworkStatus {
   }
 }
 
+import { useAccount, useBalance } from "wagmi";
+import { ConnectButtonCustom } from "@/components/ConnectButton";
+
 export default function MissionControl() {
+  const { address, isConnected } = useAccount();
+  const { data: balanceData } = useBalance({ address });
+
   const [isSpawning, setIsSpawning] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [runtimeLogs, setRuntimeLogs] = useState<string[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Wait for client-side hydration before reading wagmi state
+  useEffect(() => { setIsMounted(true); }, []);
 
   const vantaRef = useRef<HTMLDivElement>(null);
   const vantaEffect = useRef<any>(null);
+  const [lowPowerMode, setLowPowerMode] = useState<boolean>(false);
+
+  // Load low power mode preference
+  useEffect(() => {
+    const saved = localStorage.getItem("SAK_LOW_POWER");
+    if (saved === "true") setLowPowerMode(true);
+  }, []);
+
+  const toggleLowPower = () => {
+    const newVal = !lowPowerMode;
+    setLowPowerMode(newVal);
+    localStorage.setItem("SAK_LOW_POWER", String(newVal));
+  };
 
   // ─── VANTA WAVES CONFIG ─── (loads via CDN to avoid webpack UMD issues) ───
   useEffect(() => {
@@ -63,7 +98,7 @@ export default function MissionControl() {
     }
 
     async function initVanta() {
-      if (vantaEffect.current || !vantaRef.current) return;
+      if (vantaEffect.current || !vantaRef.current || lowPowerMode) return;
 
       try {
         // Load THREE.js from CDN first — Vanta needs window.THREE to exist
@@ -102,6 +137,15 @@ export default function MissionControl() {
 
     initVanta();
 
+    if (lowPowerMode) {
+        if (vantaEffect.current) {
+            vantaEffect.current.destroy();
+            vantaEffect.current = null;
+        }
+    } else {
+        initVanta();
+    }
+
     return () => {
       cancelled = true;
       if (vantaEffect.current) {
@@ -109,7 +153,7 @@ export default function MissionControl() {
         vantaEffect.current = null;
       }
     };
-  }, []);
+  }, [lowPowerMode]);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -119,6 +163,18 @@ export default function MissionControl() {
   const [networkData, setNetworkData] = useState<NetworkStatus | null>(null);
   const [lastProvingTime, setLastProvingTime] = useState<string>("0s");
   const [spawnError, setSpawnError] = useState<string | null>(null);
+  const [spawnTimer, setSpawnTimer] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isSpawning) {
+      setSpawnTimer(0);
+      interval = setInterval(() => {
+        setSpawnTimer(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isSpawning]);
 
   const fetchAgents = async () => {
     setIsLoadingAgents(true);
@@ -127,6 +183,8 @@ export default function MissionControl() {
       const data = await res.json();
       if (data.success) {
         setAgents(data.agents);
+      } else {
+        console.warn("Failed to refresh active fleet:", data.message);
       }
     } catch (e) {
       console.error("Failed to fetch agents:", e);
@@ -153,51 +211,74 @@ export default function MissionControl() {
   }, []);
 
   const handleSpawn = async () => {
+    // Spawning uses the server-side PRIVATE_KEY from .env — no browser wallet needed.
     setSpawnError(null);
     setIsSpawning(true);
-    setRuntimeLogs(["Initializing Peer-to-Peer Orchestrator...", "Contacting 0G Galileo Testnet..."]);
-    toast.info("Initializing Agent Genesis Sequence...");
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s UI timeout
+    setRuntimeLogs(["[SAK] Initializing Agent Genesis Sequence...", "[SAK] Contacting 0G Galileo Testnet..."]);
+    toast.info("ZK Genesis dispatched! Proving in background (~60s)...");
 
     try {
       const response = await fetch("/api/spawn-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
         body: JSON.stringify({
-          name: `Sovereign-Alpha-${Math.floor(Math.random() * 999)}`,
+          name: `SAK-Agent-${Math.floor(Math.random() * 9999)}`,
         }),
       });
-      clearTimeout(timeoutId);
 
       const data = await response.json();
 
       if (!data.success) {
         setRuntimeLogs(prev => [...prev, `❌ ERROR: ${data.message}`]);
         toast.error(`Spawn failed: ${data.message}`);
-        throw new Error(data.message || "Spawn failed");
+        setSpawnError(data.message || "Spawn failed");
+        setIsSpawning(false);
+        return;
       }
 
-      toast.success(`Agent ${data.name} successfully spawned and anchored on-chain!`);
+      // API returned instantly (fire-and-forget) — the ZK proof is running in the background.
+      // Poll /api/get-agents every 10s until a new agent appears (up to 2 minutes).
+      const prevCount = agents.length;
+      setRuntimeLogs(prev => [...prev,
+        `[SAK] Agent genesis dispatched: ${data.name}`,
+        "[ZK] Generating Groth16 witness...",
+        "[ZK] Running snarkjs fullProve (this takes ~30-60s)...",
+        "[0G] Waiting for on-chain settlement...",
+      ]);
 
-      const logs = data.logs ? data.logs.split("\n").filter((l: string) => l.trim().length > 0) : [];
-      setRuntimeLogs(prev => [...prev, ...logs, "✅ E2E Cycle Finalized."]);
+      let attempts = 0;
+      const maxAttempts = 12; // 12 * 10s = 2 minutes
+      const poll = setInterval(async () => {
+        attempts++;
+        const res = await fetch("/api/get-agents");
+        const pollData = await res.json();
+        if (pollData.success && pollData.agents.length > prevCount) {
+          clearInterval(poll);
+          setIsSpawning(false);
+          setAgents(pollData.agents);
+          setCurrentPage(1);
+          await fetchNetworkStatus();
+          const newAgent = pollData.agents[0];
+          setRuntimeLogs(prev => [...prev,
+            `✅ Agent ${newAgent?.name ?? data.name} anchored on-chain!`,
+            `🔗 TX: ${newAgent?.txHash ?? "confirmed"}`,
+            "✅ E2E ZK Genesis Cycle Finalized.",
+          ]);
+          toast.success(`${newAgent?.name ?? data.name} is live on 0G Galileo!`);
+        } else if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          setIsSpawning(false);
+          setRuntimeLogs(prev => [...prev, "⚠️ Proof still processing — refresh fleet to see new agent."]);
+          toast.info("ZK proving may still be running. Refresh the fleet in a moment.");
+        } else {
+          setRuntimeLogs(prev => [...prev, `[ZK] Still proving... (${attempts * 10}s elapsed)`]);
+        }
+      }, 10000);
 
-      if (data.provingTime !== "N/A") {
-        setLastProvingTime(data.provingTime);
-      }
-
-      // Re-fetch the full list to ensure everything is in sync
-      fetchAgents();
-      fetchNetworkStatus();
-    } catch (error: unknown) {
-      const err = error as Error;
-      console.error("Spawn failed:", err);
-      setSpawnError(err.message || "Spawn failed — check terminal logs for details.");
-      toast.error(err.message || "Spawn failed");
-    } finally {
+    } catch (error: any) {
+      console.error("Spawn failed:", error);
+      setSpawnError(error.message || "Spawn failed — check terminal logs for details.");
+      toast.error(error.message || "Spawn failed");
       setIsSpawning(false);
     }
   };
@@ -230,75 +311,100 @@ export default function MissionControl() {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-cyan bg-brand-cyan/10 text-brand-cyan text-xs font-bold uppercase tracking-widest mb-4"
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-cyan/50 bg-brand-cyan/10 text-brand-cyan text-[10px] font-bold uppercase tracking-widest mb-4"
             >
-              <Activity className="w-4 h-4" /> 0G Galileo Testnet Active
+              <Activity className="w-3 h-3" /> Network: 0G Galileo Testnet
             </motion.div>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-4 text-white font-display">
-              Sovereign <span className="text-gradient">Agents</span>
+              Mission <span className="text-gradient">Control</span>
             </h1>
-            <p className="text-lg text-white/60 max-w-2xl font-light">
-              Mission Control Dashboard. Monitor AI execution, enforce cryptographic constitutions, and manage immutable intent memory on the 0G DA layer.
+            <p className="text-base text-white/50 max-w-2xl font-light leading-relaxed">
+              Decentralized AI Governance. Securely spawn agents, verify cryptographic constitutions via ZK-SNARKs, and manage high-integrity intent memory on the 0G DA layer.
             </p>
           </div>
-          <motion.button
-            disabled={isSpawning}
-            onClick={handleSpawn}
-            whileHover={isSpawning ? {} : {
-              scale: 1.05,
-              boxShadow: "0 0 25px rgba(155, 109, 255, 0.4), 0 0 60px rgba(155, 109, 255, 0.15)",
-              borderColor: "rgba(155, 109, 255, 0.5)",
-            }}
-            whileTap={isSpawning ? {} : { scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 400, damping: 20 }}
-            className="glass-panel px-8 py-4 rounded-full flex items-center gap-2 hover:bg-white/5 transition-all text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-white/10"
-          >
-            {isSpawning ? (
-              <>
-                <Loader2 className="w-5 h-5 text-brand-purple animate-spin" />
-                Wait (ZK Proving)...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5 text-brand-purple" />
-                Spawn Agent
-              </>
-            )}
-          </motion.button>
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+            <button
+                onClick={toggleLowPower}
+                className={cn(
+                    "px-4 py-4 rounded-xl flex items-center gap-2 transition-all border text-[10px] font-bold uppercase tracking-widest",
+                    lowPowerMode 
+                        ? "bg-brand-purple/20 border-brand-purple/40 text-brand-purple" 
+                        : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+                )}
+                title={lowPowerMode ? "Enable High Performance UI (WebGL)" : "Disable GPU-Heavy Background"}
+            >
+                <Cpu size={14} className={lowPowerMode ? "" : "animate-pulse"} />
+                {lowPowerMode ? "Low Power: ON" : "Low Power: OFF"}
+            </button>
+            <ConnectButtonCustom />
+            <motion.button
+              disabled={isSpawning}
+              onClick={handleSpawn}
+              whileHover={isSpawning ? {} : {
+                scale: 1.05,
+                boxShadow: "0 0 25px rgba(0, 255, 209, 0.4), 0 0 60px rgba(0, 255, 209, 0.15)",
+                borderColor: "rgba(0, 255, 209, 0.5)",
+              }}
+              whileTap={isSpawning ? {} : { scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              className={cn(
+                "px-8 py-4 rounded-xl flex items-center gap-3 transition-all font-bold text-sm uppercase tracking-[0.2em] border border-white/10",
+                isSpawning 
+                  ? "bg-white/10 text-white/40 cursor-not-allowed" 
+                  : "bg-brand-cyan text-black hover:bg-brand-cyan/90"
+              )}
+            >
+              {isSpawning ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Genesis Proving ({formatTime(spawnTimer)})
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="w-5 h-5" />
+                  Spawn Sovereign Agent
+                </>
+              )}
+            </motion.button>
+          </div>
         </header>
 
         {spawnError && (
-          <div className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium flex items-center gap-3">
-            ❌ {spawnError}
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-center gap-3"
+          >
+            <Shield className="w-4 h-4 shrink-0" /> {spawnError}
+          </motion.div>
         )}
 
         {/* Real-Data Metrics Row */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <StatsCard
-            title="Wallet Intelligence"
-            value={networkData?.wallet?.balance || "0.00"}
-            label="$0G"
-            icon={<Wallet size={20} />}
-            trend={networkData?.wallet?.address ? `Addr: ${networkData.wallet.address.slice(0, 6)}...${networkData.wallet.address.slice(-4)}` : "Checking RPC..."}
-            status={networkData ? "online" : "loading"}
-          />
-          <StatsCard
-            title="ZK Proving Stats"
-            value={lastProvingTime}
-            label="Duration"
-            icon={<Cpu size={20} />}
-            trend="Groth16 (snarkjs / circom 2.0)"
-            status={isSpawning ? "loading" : "online"}
-          />
-          <StatsCard
-            title="Network Vitality"
-            value={networkData?.network?.totalAgents || "0"}
-            label="Deploys"
-            icon={<Network size={20} />}
-            trend={`Node: ${networkData?.network?.rpcStatus || "Syncing"}`}
-            status={networkData ? "online" : "loading"}
-          />
+            <StatsCard 
+                title="Connected Assets" 
+                value={isConnected ? parseFloat(balanceData?.formatted || "0").toFixed(2) : "---"} 
+                label={balanceData?.symbol || "$0G"} 
+                icon={<Wallet size={20} />}
+                trend={isConnected ? `Connected: ${address?.slice(0,6)}...${address?.slice(-4)}` : "Wallet not connected"}
+                status={isConnected ? "online" : "offline"}
+            />
+            <StatsCard 
+                title="AI Fleet Integrity" 
+                value={networkData?.network?.totalAgents || "0"} 
+                label="Registered" 
+                icon={<Shield size={20} />}
+                trend={`Node Status: ${networkData?.network?.rpcStatus || "Checking..."}`}
+                status={networkData ? "online" : "loading"}
+            />
+            <StatsCard 
+                title="ZK Proving Engine" 
+                value={lastProvingTime} 
+                label="Duration" 
+                icon={<Cpu size={20} />}
+                trend="snarkjs / Groth16 / Circom 2.1"
+                status={isSpawning ? "loading" : "online"}
+            />
         </section>
 
         {/* Dashboard Grid */}

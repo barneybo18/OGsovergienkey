@@ -7,6 +7,8 @@ import { generateProof } from "./prover";
 const sss = require('shamirs-secret-sharing');
 
 
+import { parseTask } from "./task-parser";
+
 dotenv.config();
 
 const REGISTRY_ABI = JSON.parse(fs.readFileSync(path.join(__dirname, "../../contracts/artifacts/contracts/AgentRegistry.sol/AgentRegistry.json"), "utf8")).abi;
@@ -16,7 +18,7 @@ const ADDRESSES = JSON.parse(fs.readFileSync(path.join(__dirname, "../../contrac
  * The Sovereign Agent Orchestrator
  * This class handles the complete lifecycle: Genesis, Intent, Proving, and Settlement.
  */
-class SovereignAgent {
+export class SovereignAgent {
     private zeroG: ZeroGService;
     private wallet: ethers.Wallet;
     private registry: ethers.Contract;
@@ -32,16 +34,34 @@ class SovereignAgent {
     }
 
     /**
-     * Phase 1: Genesis - Generate MPC Shard, Upload to 0G, Register on-chain
+     * Phase 1: Genesis - Generate MPC Shard, Prove Constitution, Upload to 0G, Register on-chain
      */
-    async spawn(name: string) {
-        console.log(`\n>> [GENESIS] Spawning agent: ${name}`);
+    async asyncSpawn(name: string) {
+        console.log(`\n>> [GENESIS] Initializing Agent Birth: ${name}`);
         
-        // 1. Real MPC simulation: generate ephemeral keypair and split with Shamir 2-of-3
+        // 1. Generate ephemeral keypair and split with Shamir 2-of-3
         const ephemeralWallet = ethers.Wallet.createRandom();
         const secretBytes = Buffer.from(ephemeralWallet.privateKey.slice(2), 'hex');
         const shares = sss.split(secretBytes, { shares: 3, threshold: 2 });
-        // Store shard 1 on 0G Storage (other shards go to MPC nodes in production)
+        const agentPubKeyHex = ethers.id(ephemeralWallet.publicKey) as `0x${string}`;
+
+        console.log(`[Flow] Phase 1a: Generating Verifiable Constitution (ZK Proof)...`);
+        const provingStart = Date.now();
+        // Generate a proof that the constitution is valid for this agent
+        // Default rules: Limit 1000, Whitelist address provided
+        const { pA, pB, pC, pubSignals } = await generateProof(
+            0, // Initial balance 0
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            1, // assetId
+            1000, 
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        );
+        const provingDuration = ((Date.now() - provingStart) / 1000).toFixed(1);
+        console.log(`PROVING_DURATION: ${provingDuration}s`);
+        console.log(`[Flow] ✅ ZK Proof Generated Successfully.`);
+
+        // 2. Prepare and Upload to 0G Storage (Resilient to node lag)
+        console.log(`[Flow] Phase 1b: Securing Identity Shards on 0G Storage...`);
         const mockShardData = JSON.stringify({
           shardIndex: 1,
           totalShards: 3,
@@ -50,49 +70,40 @@ class SovereignAgent {
           agentPubKey: ephemeralWallet.publicKey,
           timestamp: Date.now()
         });
-        const shardId = `shard-${name.toLowerCase()}-001`;
-        const agentPubKeyHex = ethers.id(ephemeralWallet.publicKey) as `0x${string}`;
+        const shardId = `shard-${name.toLowerCase()}-${Date.now()}`;
         
-        // 2. Upload to 0G Storage (Resilient to 503 errors)
         let shardRootHash = "0x-offline";
         try {
             shardRootHash = await this.zeroG.uploadEncryptedMPCShard(shardId, mockShardData);
         } catch (e) {
-            console.warn(`[0G-WARNING] Storage Offline: ${e}. Proceeding in local-only mode.`);
+            console.warn(`[0G-WARNING] Storage Node Delay: ${e}. Anchoring with Local Memory.`);
+            // Fallback root hash for local dev if 0G is down
+            shardRootHash = ethers.id(mockShardData);
         }
         
-        // 3. Register on 0G Chain (Requires RPC to be up)
-        console.log(`[Flow] Registering agent on-chain at ${ADDRESSES.AgentRegistry}...`);
+        // 3. Register on 0G Chain
+        console.log(`[Flow] Phase 1c: Settling Sovereign Identity on 0G Galileo...`);
         
-        // --- NEW: Constitution Verification Cycle ---
-        const provingStart = Date.now();
-        // Generate a proof that the constitution is valid for this agent
-        const { pA, pB, pC, pubSignals } = await generateProof(
-            0, // Initial balance 0
-            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", // Default whitelist
-            1000, 
-            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-        );
-        const provingDuration = ((Date.now() - provingStart) / 1000).toFixed(1);
-        console.log(`PROVING_DURATION: ${provingDuration}s`);
-        // --------------------------------------------
-
-        const pubKey = agentPubKeyHex; 
         const constitutionHashBytes32 = shardRootHash.startsWith('0x')
           ? shardRootHash.padEnd(66, '0').slice(0, 66)
           : ('0x' + shardRootHash).padEnd(66, '0').slice(0, 66);
           
-        const tx = await this.registry.registerAgent(pubKey, constitutionHashBytes32);
+        const tx = await this.registry.registerAgent(agentPubKeyHex, constitutionHashBytes32);
         const receipt = await this.waitForReceipt(tx);
         
         const event = receipt.logs.map((log: any) => this.registry.interface.parseLog(log)).find((log: any) => log?.name === "AgentRegistered");
         const agentId = event?.args[0];
 
-        console.log(`✅ Agent spawned! ID: ${agentId}, TX: ${receipt.hash}`);
+        console.log(`✅ Genesis Complete! Agent ID: ${agentId}, TX: ${receipt.hash}`);
         console.log(`AGENT_ID: ${agentId}`);
         console.log(`ROOT_HASH: ${shardRootHash}`);
         return agentId;
     }
+
+    async spawn(name: string) {
+        return this.asyncSpawn(name);
+    }
+
 
     /**
      * Phase 2: Action - Form intent, Prove via ZK, Log to DA, Settle on-chain
@@ -128,7 +139,8 @@ class SovereignAgent {
         const provingStart = Date.now();
         const { pA, pB, pC, pubSignals } = await generateProof(
             amount, 
-            targetAddress, 
+            targetAddress,
+            1, // assetId
             1000, 
             targetAddress
         );
@@ -153,24 +165,50 @@ class SovereignAgent {
     }
 
     /**
+     * Phase 3: Task Execution - Direct instruction verified by ZK
+     */
+    async executeTask(agentId: bigint, instruction: string, result: string) {
+        console.log(`\n>> [TASK] Agent ${agentId} executing task: ${instruction}`);
+        
+        // 1. Parse task
+        const { amount, targetAddress } = parseTask(instruction);
+
+        // 2. Generate ZK Proof
+        const { pA, pB, pC, pubSignals } = await generateProof(
+            amount, 
+            targetAddress,
+            1, // assetId
+            1000, 
+            targetAddress
+        );
+
+        // 3. Encode proof as bytes for the contract
+        const proof = ethers.AbiCoder.defaultAbiCoder().encode(
+            ["uint[2]", "uint[2][2]", "uint[2]", "uint[3]"],
+            [pA, pB, pC, pubSignals]
+        );
+
+        // 4. Submit to on-chain executeTask
+        console.log(`[Settlement] Calling AgentRegistry.executeTask...`);
+        const tx = await this.registry.executeTask(agentId, instruction, result, proof);
+        const receipt = await this.waitForReceipt(tx);
+
+        console.log(`✅ Task recorded on-chain! TX: ${receipt.hash}`);
+    }
+
+    /**
      * Resilient tx.wait() replacement.
-     * The Galileo dev RPC (evmrpc-testnet.0g.ai) sometimes returns -32000 instead of null
-     * for unconfirmed txs, causing ethers.js v6 to throw immediately instead of retrying.
-     * This helper catches that and falls back to manual polling via getTransactionReceipt().
      */
     private async waitForReceipt(tx: any, maxAttempts = 75, intervalMs = 4000): Promise<any> {
-        // First, try the native tx.wait() — works fine on healthy RPC responses
         try {
             const receipt = await tx.wait();
             if (receipt) return receipt;
         } catch (e: any) {
             const isRpcQuirk = e?.error?.code === -32000 || e?.code === 'UNKNOWN_ERROR';
-            if (!isRpcQuirk) throw e; // real error — re-throw immediately
+            if (!isRpcQuirk) throw e;
             console.warn(`[RPC] tx.wait() hit Galileo RPC quirk (-32000). Switching to manual polling for ${tx.hash}...`);
         }
 
-        // Manual polling fallback — provider.getTransactionReceipt() returns null (not -32000)
-        // when the tx hasn't mined yet, so ethers.js won't throw.
         const provider = this.wallet.provider!;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             await new Promise(r => setTimeout(r, intervalMs));
@@ -185,7 +223,7 @@ class SovereignAgent {
                 console.warn(`[RPC] Poll attempt ${attempt} error: ${pollErr?.message ?? pollErr}`);
             }
         }
-        throw new Error(`Transaction ${tx.hash} not confirmed after ${maxAttempts} attempts (~${(maxAttempts * intervalMs / 60000).toFixed(1)} min). RPC may be degraded.`);
+        throw new Error(`Transaction ${tx.hash} not confirmed after ${maxAttempts} attempts.`);
     }
 
     private bytesToUint256Array(buffer: Buffer): bigint[] {
@@ -205,7 +243,7 @@ async function run() {
     const isSpawnOnly = process.argv.includes("--spawn-only");
     
     // Test parameters
-    const name = `Bot-${Math.floor(Math.random() * 1000)}`;
+    const name = process.argv[2] || `Bot-${Math.floor(Math.random() * 1000)}`;
     const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; 
     const reportPath = path.join(__dirname, "../../report.md");
     
