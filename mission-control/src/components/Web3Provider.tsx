@@ -14,15 +14,18 @@ import {
 import '@rainbow-me/rainbowkit/styles.css';
 
 // Define 0G Galileo Testnet
+// Bug fix: chain ID was 16600 (wrong) — real 0G Galileo is 16602
+// Bug fix: explorer was scan-testnet.0g.ai — correct URL is chainscan-galileo.0g.ai
+// Bug fix: currency symbol was 'A0G' — correct symbol is '0G'
 const zeroG = {
-  id: 16600,
+  id: 16602,
   name: '0G Galileo',
-  nativeCurrency: { name: '0G', symbol: 'A0G', decimals: 18 },
+  nativeCurrency: { name: '0G', symbol: '0G', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://evmrpc-testnet.0g.ai'] },
   },
   blockExplorers: {
-    default: { name: '0G Scan', url: 'https://scan-testnet.0g.ai' },
+    default: { name: '0G Scan', url: 'https://chainscan-galileo.0g.ai' },
   },
 } as const;
 

@@ -45,20 +45,10 @@ export class SovereignAgent {
         const shares = sss.split(secretBytes, { shares: 3, threshold: 2 });
         const agentPubKeyHex = ethers.id(ephemeralWallet.publicKey) as `0x${string}`;
 
-        console.log(`[Flow] Phase 1a: Generating Verifiable Constitution (ZK Proof)...`);
-        const provingStart = Date.now();
-        // Generate a proof that the constitution is valid for this agent
-        // Default rules: Limit 1000, Whitelist address provided
-        const { pA, pB, pC, pubSignals } = await generateProof(
-            0, // Initial balance 0
-            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-            1, // assetId
-            1000, 
-            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-        );
-        const provingDuration = ((Date.now() - provingStart) / 1000).toFixed(1);
-        console.log(`PROVING_DURATION: ${provingDuration}s`);
-        console.log(`[Flow] ✅ ZK Proof Generated Successfully.`);
+        console.log(`[Flow] Phase 1a: Generating Verifiable Constitution Hash...`);
+        // NOTE: ZK proving only happens during task execution (executeTask), NOT during genesis.
+        // Genesis only needs a constitution hash to anchor — no proof required at registration time.
+        // Removing the generateProof call here saves 30-60s per spawn with no loss of security.
 
         // 2. Prepare and Upload to 0G Storage (Resilient to node lag)
         console.log(`[Flow] Phase 1b: Securing Identity Shards on 0G Storage...`);
@@ -183,8 +173,9 @@ export class SovereignAgent {
         );
 
         // 3. Encode proof as bytes for the contract
+        // Bug fix: contract decodes as (uint[2], uint[2][2], uint[2], uint[4]) — must encode uint[4] not uint[3]
         const proof = ethers.AbiCoder.defaultAbiCoder().encode(
-            ["uint[2]", "uint[2][2]", "uint[2]", "uint[3]"],
+            ["uint[2]", "uint[2][2]", "uint[2]", "uint[4]"],
             [pA, pB, pC, pubSignals]
         );
 

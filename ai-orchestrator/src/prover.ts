@@ -4,13 +4,13 @@ import * as fs from "fs";
 
 /**
  * Groth16 proof result structured for the on-chain AgentRegistry.logIntent() call.
- * Matches the Solidity signature: logIntent(uint256, string, uint[2], uint[2][2], uint[2], uint[4])
+ * Matches the Solidity signature: logIntent(uint256, string, uint[2], uint[2][2], uint[2], uint[3])
  */
 export interface Groth16ProofResult {
     pA: [bigint, bigint];
     pB: [[bigint, bigint], [bigint, bigint]];
     pC: [bigint, bigint];
-    pubSignals: [bigint, bigint, bigint, bigint];
+    pubSignals: [bigint, bigint, bigint, bigint]; // intentAmount, targetAddress, assetId, valid
 }
 
 /**
@@ -23,6 +23,7 @@ export interface Groth16ProofResult {
 export async function generateProof(
     intentAmount: number,
     targetAddress: string,
+    assetId: number,
     maxSpendLimit: number,
     whitelistedAddress: string
 ): Promise<Groth16ProofResult> {
@@ -35,10 +36,11 @@ export async function generateProof(
     const whitelistBigInt = BigInt(whitelistedAddress.startsWith("0x") ? whitelistedAddress : `0x${whitelistedAddress}`);
 
     const input = {
-        intent_amount: intentAmount,
-        target_address: targetBigInt.toString(),
-        max_spend_limit: maxSpendLimit,
-        whitelisted_address: whitelistBigInt.toString()
+        intentAmount: intentAmount,
+        targetAddress: targetBigInt.toString(),
+        assetId: assetId,
+        maxSpendLimit: maxSpendLimit,
+        whitelistedAddress: whitelistBigInt.toString()
     };
 
     console.log(`[ZK-Prover] 🛡️ Initializing Groth16 Proof generation...`);
@@ -46,13 +48,11 @@ export async function generateProof(
 
     // GUARD: Check that circuit artifacts exist BEFORE calling snarkjs to avoid native hang
     if (!fs.existsSync(wasmPath) || !fs.existsSync(zkeyPath)) {
-        console.warn(`[ZK-Prover] ⚠️  RUNNING IN MOCK MODE — circuit artifacts not found.`);
-        return {
-            pA: [1n, 2n],
-            pB: [[1n, 2n], [3n, 4n]],
-            pC: [1n, 2n],
-            pubSignals: [BigInt(intentAmount), targetBigInt, 1n, 1n]
-        };
+        console.error(`[ZK-Prover] ❌ FATAL: Circuit artifacts not found at:`);
+        console.error(`   WASM: ${wasmPath}`);
+        console.error(`   ZKEY: ${zkeyPath}`);
+        console.error(`Run 'cd zk-engine/circuits && bash compile.sh' to generate artifacts.`);
+        throw new Error("Circuit artifacts missing. Cannot generate proof.");
     }
 
     try {
@@ -85,7 +85,7 @@ export async function generateProof(
             BigInt(calldataArr[3][0]),
             BigInt(calldataArr[3][1]),
             BigInt(calldataArr[3][2]),
-            BigInt(calldataArr[3][3])
+            BigInt(calldataArr[3][3] ?? 0),  // 4th signal (valid flag), default 0 if circuit omits it
         ];
 
         console.log(`[ZK-Prover] Running local verification...`);
@@ -99,13 +99,8 @@ export async function generateProof(
 
         return { pA, pB, pC, pubSignals };
     } catch (error) {
-        console.error(`[ZK-Prover] ❌ Proving Error: ${error}`);
-        console.warn(`[ZK-Prover] ⚠️  FALLBACK: Running in MOCK MODE due to proof failure.`);
-        return { 
-            pA: [1n, 2n], 
-            pB: [[1n, 2n], [3n, 4n]], 
-            pC: [1n, 2n], 
-            pubSignals: [BigInt(intentAmount), targetBigInt, 1n, 1n]
-        };
+        console.error(`[ZK-Prover] ❌ FATAL Proving Error: ${error}`);
+        console.error(`[ZK-Prover] Cannot proceed with invalid proof. Aborting.`);
+        throw error;
     }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { Terminal, Send, Loader2, CheckCircle2, History, ExternalLink, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,14 +65,15 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
         setStatus('Generating ZK Proof... (30-60s)');
         let attempts = 0;
         const maxAttempts = 12; // 12 * 15s = 3 minutes
+        // Bug fix: capture prevCount in a ref to avoid stale closure inside setInterval
+        const prevCountRef = { current: tasks.length };
         const poll = setInterval(async () => {
           attempts++;
-          const prevCount = tasks.length;
           await fetchTasks();
           setStatus(`Proving in background... polling chain (${attempts}/${maxAttempts})`);
-          // If we got a new task, stop polling
+          // Use functional update + ref to avoid stale closure on tasks.length
           setTasks(prev => {
-            if (prev.length > prevCount) {
+            if (prev.length > prevCountRef.current) {
               clearInterval(poll);
               setIsProving(false);
               setStatus('');
@@ -196,7 +197,12 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
                   <div className="bg-black/40 p-4 rounded-xl border border-white/5 group-hover:border-brand-cyan/20 transition-colors">
                     <p className="text-[9px] text-white/30 uppercase font-bold mb-2 tracking-widest flex items-center justify-between">
                       On-Chain Output
-                      <a href="#" className="text-brand-cyan hover:underline flex items-center gap-1">
+                      <a 
+                        href={`https://indexer-storage-testnet-turbo.0g.ai/file/${task.result}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-cyan hover:underline flex items-center gap-1"
+                      >
                         <ExternalLink size={8} /> View on 0G DA
                       </a>
                     </p>

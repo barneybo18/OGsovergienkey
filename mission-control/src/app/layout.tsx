@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "@/components/Providers";
-import { ConnectWallet } from "@/components/ConnectWallet";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
