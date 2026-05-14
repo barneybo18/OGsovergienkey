@@ -106,7 +106,7 @@ contract AgentRegistry is Ownable {
      * @param pA           Groth16 proof point A
      * @param pB           Groth16 proof point B
      * @param pC           Groth16 proof point C
-     * @param pubSignals   Public signals: [intentAmount, targetAddress, assetId, valid]
+     * @param pubSignals   Public signals: [intentAmount, targetAddress, assetId]
      */
     function logIntent(
         uint256 agentId, 
@@ -114,7 +114,7 @@ contract AgentRegistry is Ownable {
         uint[2] memory pA, 
         uint[2][2] memory pB, 
         uint[2] memory pC, 
-        uint[4] memory pubSignals
+        uint[3] memory pubSignals
     ) external {
         require(agents[agentId].owner == msg.sender, "Not the agent owner");
         require(agents[agentId].isActive, "Agent is inactive");
@@ -142,8 +142,8 @@ contract AgentRegistry is Ownable {
         require(agents[agentId].isActive, "Agent is inactive");
 
         // Decode proof components (Groth16 format)
-        (uint[2] memory pA, uint[2][2] memory pB, uint[2] memory pC, uint[4] memory pubSignals) = 
-            abi.decode(proof, (uint[2], uint[2][2], uint[2], uint[4]));
+        (uint[2] memory pA, uint[2][2] memory pB, uint[2] memory pC, uint[3] memory pubSignals) = 
+            abi.decode(proof, (uint[2], uint[2][2], uint[2], uint[3]));
 
         // 1. Verify ZK Proof
         bool isValid = verifier.verifyProof(pA, pB, pC, pubSignals);

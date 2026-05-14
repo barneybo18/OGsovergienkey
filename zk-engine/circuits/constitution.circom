@@ -1,6 +1,7 @@
 pragma circom 2.1.6;
 
 include "../node_modules/circomlib/circuits/comparators.circom";
+include "../node_modules/circomlib/circuits/gates.circom";
 
 /**
  * ConstitutionVerifier
@@ -32,8 +33,9 @@ template ConstitutionVerifier() {
     signal input maxSpendLimit;
     signal input whitelistedAddress;
 
-    // === Output (1 = valid, circuit will fail if constraints don't hold) ===
-    signal output valid;
+    // === Output (the circuit fails if constraints don't hold) ===
+    // Note: We don't declare 'signal output' because that makes it a public signal.
+    // Instead, constraints below will fail if the proofs are invalid.
 
     // --------------------------------------------------
     // Constraint 1: intentAmount <= maxSpendLimit
@@ -57,12 +59,9 @@ template ConstitutionVerifier() {
     // Force the equality output to be 1 (true)
     addrCheck.out === 1;
 
-    // --------------------------------------------------
-    // Output: proof is valid
-    // This is a convenience output; the real security comes from
-    // the constraints above — if they fail, no valid proof exists.
-    // --------------------------------------------------
-    valid <== spendCheck.out * addrCheck.out;
+    // Note: The constraints above (spendCheck and addrCheck both must equal 1)
+    // are sufficient to validate the proof. If they're violated, Circom
+    // will fail during witness generation and no valid proof can be created.
 }
 
 component main {public [intentAmount, targetAddress, assetId]} = ConstitutionVerifier();

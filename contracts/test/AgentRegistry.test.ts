@@ -99,7 +99,7 @@ describe("AgentRegistry", function () {
       const pA: [bigint, bigint] = [1n, 2n];
       const pB: [[bigint, bigint], [bigint, bigint]] = [[1n, 2n], [3n, 4n]];
       const pC: [bigint, bigint] = [1n, 2n];
-      const pubSignals: [bigint, bigint, bigint, bigint] = [800n, 100n, 1n, 1n];
+      const pubSignals: [bigint, bigint, bigint] = [800n, 100n, 1n];
 
       await expect(registry.logIntent(1, intentDataId, pA, pB, pC, pubSignals))
         .to.emit(registry, "IntentLogged")
@@ -111,7 +111,7 @@ describe("AgentRegistry", function () {
       const pA: [bigint, bigint] = [1n, 2n];
       const pB: [[bigint, bigint], [bigint, bigint]] = [[1n, 2n], [3n, 4n]];
       const pC: [bigint, bigint] = [1n, 2n];
-      const pubSignals: [bigint, bigint, bigint, bigint] = [800n, 100n, 1n, 1n];
+      const pubSignals: [bigint, bigint, bigint] = [800n, 100n, 1n];
 
       await expect(
         registry.logIntent(1, "intent-id", pA, pB, pC, pubSignals)
@@ -122,7 +122,7 @@ describe("AgentRegistry", function () {
       const pA: [bigint, bigint] = [1n, 2n];
       const pB: [[bigint, bigint], [bigint, bigint]] = [[1n, 2n], [3n, 4n]];
       const pC: [bigint, bigint] = [1n, 2n];
-      const pubSignals: [bigint, bigint, bigint, bigint] = [800n, 100n, 1n, 1n];
+      const pubSignals: [bigint, bigint, bigint] = [800n, 100n, 1n];
 
       await expect(
         registry.connect(otherAccount).logIntent(1, "data", pA, pB, pC, pubSignals)

@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 # Exit on error
 set -e
@@ -27,33 +27,35 @@ npx snarkjs zkey contribute circuit_0.zkey circuit_final.zkey --name="SAK Final"
 npx snarkjs zkey export verificationkey circuit_final.zkey verification_key.json
 
 echo ">> Exporting Solidity Verifier..."
-npx snarkjs zkey export solidityverifier circuit_final.zkey ../../contracts/contracts/Verifier.sol
+npx snarkjs zkey export solidityverifier circuit_final.zkey ../../contracts/contracts/Groth16Verifier.sol
 
-echo ">> Patching Verifier.sol for memory compatibility..."
-# This is a hack to make the snarkjs generated verifier compatible with our IZKVerifier interface
-sed -i 's/calldata _p/memory _p/g' ../../contracts/contracts/Verifier.sol
-sed -i 's/calldata _pubSignals/memory _pubSignals/g' ../../contracts/contracts/Verifier.sol
-sed -i 's/calldataload/mload/g' ../../contracts/contracts/Verifier.sol
+echo ">> Creating Verifier wrapper..."
+cat > ../../contracts/contracts/Verifier.sol << 'VERIFIER_EOF'
+// SPDX-License-Identifier: GPL-3.0
+import "./interfaces/IZKVerifier.sol";
+import "./Groth16Verifier.sol";
 
-# Append the IZKVerifier wrapper if not present
-if ! grep -q "contract Verifier is IZKVerifier" ../../contracts/contracts/Verifier.sol; then
-    cat <<EOF >> ../../contracts/contracts/Verifier.sol
+/**
+ * @title Verifier
+ * @dev A wrapper around the snarkjs-generated Groth16Verifier.
+ * It implements the IZKVerifier interface for the AgentRegistry.
+ */
+contract Verifier is IZKVerifier {
+    Groth16Verifier public immutable internalVerifier;
 
-interface IZKVerifier {
-    function verify(uint256[] memory pubInputs, bytes memory proof) external view returns (bool);
-}
+    constructor() {
+        internalVerifier = new Groth16Verifier();
+    }
 
-contract Verifier is IZKVerifier, Groth16Verifier {
-    function verify(uint256[] memory pubInputs, bytes memory proof) external view override returns (bool) {
-        (uint[2] memory pA, uint[2][2] memory pB, uint[2] memory pC) = abi.decode(proof, (uint[2], uint[2][2], uint[2]));
-        uint[4] memory pubSignals;
-        for (uint i = 0; i < 4; i++) {
-            pubSignals[i] = pubInputs[i];
-        }
-        return verifyProof(pA, pB, pC, pubSignals);
+    function verifyProof(
+        uint[2] memory pA,
+        uint[2][2] memory pB,
+        uint[2] memory pC,
+        uint[3] memory pubSignals
+    ) external view override returns (bool) {
+        return internalVerifier.verifyProof(pA, pB, pC, pubSignals);
     }
 }
-EOF
-fi
+VERIFIER_EOF
 
-echo "✅ Compilation and setup complete!"
+echo ">> ✅ Verifier contracts created successfully!"

@@ -5,7 +5,7 @@
  * UPDATE the address after deploying: npm run deploy:testnet (in contracts/)
  */
 
-export const AGENT_REGISTRY_ADDRESS = "0x8359FBd8461d0cd14a39F728d7f1BbE585bF0dC9" as `0x${string}`;
+export const AGENT_REGISTRY_ADDRESS = "0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E" as `0x${string}`;
 
 export const AGENT_REGISTRY_ABI = [
   // ── Read Functions ────────────────────────────────────────
@@ -57,7 +57,7 @@ export const AGENT_REGISTRY_ABI = [
       { name: "_pA", type: "uint256[2]" },
       { name: "_pB", type: "uint256[2][2]" },
       { name: "_pC", type: "uint256[2]" },
-      { name: "_pubSignals", type: "uint256[4]" },
+      { name: "_pubSignals", type: "uint256[3]" },
     ],
     name: "logIntent",
     outputs: [],

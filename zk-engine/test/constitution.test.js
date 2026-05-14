@@ -24,9 +24,9 @@ describe("Constitution Circuit", function () {
         try {
             const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
             expect(publicSignals).to.be.an("array");
-            // Order: [committed_amount, committed_address, max_spend_limit, whitelisted_address]
-            expect(publicSignals[0]).to.equal("800"); 
-            expect(publicSignals[2]).to.equal("1000");
+            // Public signals: [intentAmount, targetAddress, assetId]
+            expect(publicSignals[0]).to.equal("800"); // intentAmount
+            expect(publicSignals[2]).to.equal("1"); // assetId
         } catch (e) {
             if (e.message.includes("ENOENT")) {
                 this.skip(); // Skip if artifacts are missing
