@@ -3,8 +3,53 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
+import crypto from "crypto";
 
 const execAsync = promisify(exec);
+
+const DEMO_MODE = process.env.DEMO_MODE === "true";
+
+// ─── DEMO MODE: Generates realistic-looking mock data without touching the network ───
+async function handleDemoSpawn(name: string) {
+  // Simulate a realistic pipeline delay (25s gives time to narrate during demo)
+  await new Promise((r) => setTimeout(r, 25000));
+
+  const agentId = Math.floor(Math.random() * 900) + 100;
+  const rootHash = "0x" + crypto.randomBytes(32).toString("hex");
+  const txHash = "0x" + crypto.randomBytes(32).toString("hex");
+  const provingTime = (1.2 + Math.random() * 1.6).toFixed(1) + "s";
+
+  // Simulated orchestrator stdout — mirrors real output format
+  const logs = [
+    `>> [GENESIS] Spawning agent: ${name}`,
+    `[0G-Storage] Uploading MPC shard to 0G Storage...`,
+    `[0G-Storage] ✅ Shard pinned. Root: ${rootHash.slice(0, 18)}...`,
+    `[Flow] Registering agent on-chain at 0x65aAd1b52D7aD324dC98CB0EC9AACc3AF8036989...`,
+    `[PROVING] Generating Groth16 proof (circom 2.0 / snarkjs)...`,
+    `PROVING_DURATION: ${provingTime}`,
+    `[PROVING] 🛡️ Groth16 Proof Successfully Generated in ${provingTime}.`,
+    `[DA] Posting intent to 0G Data Availability...`,
+    `[DA] ✅ Intent logged. DA Root: ${("0x" + crypto.randomBytes(32).toString("hex")).slice(0, 18)}...`,
+    `[Settlement] Calling AgentRegistry.logIntent on 0G Chain...`,
+    `✅ Agent spawned! ID: ${agentId}, TX: ${txHash.slice(0, 18)}...`,
+    `AGENT_ID: ${agentId}`,
+    `ROOT_HASH: ${rootHash}`,
+    ``,
+    `🚀 MISSION SUCCESSFUL: Sovereign Agent is live and secured.`,
+  ].join("\n");
+
+  return NextResponse.json({
+    success: true,
+    name: name,
+    agentId: String(agentId),
+    rootHash: rootHash,
+    provingTime: provingTime,
+    txHash: txHash,
+    logs: logs,
+    demo: true,
+    message: "Sovereign Agent E2E Flow Completed Successfully (Demo Mode)",
+  });
+}
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +58,12 @@ export async function POST(request: Request) {
     // 1. Input Validation
     if (!name || typeof name !== "string") {
       return NextResponse.json({ success: false, message: "Valid agent name is required" }, { status: 400 });
+    }
+
+    // ─── DEMO MODE SHORTCUT ───
+    if (DEMO_MODE) {
+      console.log(`[API] 🎬 DEMO MODE — Simulating spawn for: ${name}`);
+      return handleDemoSpawn(name);
     }
 
     // 2. Resolve absolute path for orchestrator

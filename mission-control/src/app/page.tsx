@@ -158,19 +158,13 @@ export default function MissionControl() {
     setRuntimeLogs(["Initializing Peer-to-Peer Orchestrator...", "Contacting 0G Galileo Testnet..."]);
     toast.info("Initializing Agent Genesis Sequence...");
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s UI timeout
-
     try {
+      const agentName = `Sovereign-Alpha-${Math.floor(Math.random() * 999)}`;
       const response = await fetch("/api/spawn-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          name: `Sovereign-Alpha-${Math.floor(Math.random() * 999)}`,
-        }),
+        body: JSON.stringify({ name: agentName }),
       });
-      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -189,8 +183,20 @@ export default function MissionControl() {
         setLastProvingTime(data.provingTime);
       }
 
-      // Re-fetch the full list to ensure everything is in sync
-      fetchAgents();
+      // If demo mode, add the agent directly to local state (no on-chain event to scan)
+      if (data.demo) {
+        const demoAgent: Agent = {
+          name: data.name,
+          id: `ID: ${data.agentId}`,
+          rootHash: data.rootHash,
+          zkStatus: "Verified",
+          txHash: data.txHash,
+        };
+        setAgents(prev => [demoAgent, ...prev]);
+      } else {
+        // Re-fetch the full list from chain to ensure everything is in sync
+        fetchAgents();
+      }
       fetchNetworkStatus();
     } catch (error: unknown) {
       const err = error as Error;
@@ -235,7 +241,7 @@ export default function MissionControl() {
               <Activity className="w-4 h-4" /> 0G Galileo Testnet Active
             </motion.div>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-4 text-white font-display">
-              Sovereign <span className="text-gradient">Agents</span>
+              Enclave <span className="text-gradient">Keys</span>
             </h1>
             <p className="text-lg text-white/60 max-w-2xl font-light">
               Mission Control Dashboard. Monitor AI execution, enforce cryptographic constitutions, and manage immutable intent memory on the 0G DA layer.
