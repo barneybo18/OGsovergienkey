@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import path from "path";
 import { spawn } from "child_process";
 import fs from "fs";
+import crypto from "crypto";
 
 // Fire-and-forget runner: starts the ZK proof process and returns immediately.
 // The UI polls /api/get-agents until the new agent appears on-chain.

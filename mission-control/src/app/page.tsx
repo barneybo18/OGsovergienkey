@@ -152,12 +152,12 @@ export default function MissionControl() {
     initVanta();
 
     if (lowPowerMode) {
-        if (vantaEffect.current) {
-            vantaEffect.current.destroy();
-            vantaEffect.current = null;
-        }
+      if (vantaEffect.current) {
+        vantaEffect.current.destroy();
+        vantaEffect.current = null;
+      }
     } else {
-        initVanta();
+      initVanta();
     }
 
     return () => {
@@ -248,23 +248,23 @@ export default function MissionControl() {
         "[0G] Preparing Shard Merkle Tree... 82%",
         "[0G] Finalizing Shard Encoding... 95%"
       ];
-      
+
       let stepIdx = 0;
       const progressInterval = setInterval(() => {
         if (stepIdx < progressSteps.length) {
-            setRuntimeLogs(prev => [...prev, progressSteps[stepIdx]]);
-            stepIdx++;
+          setRuntimeLogs(prev => [...prev, progressSteps[stepIdx]]);
+          stepIdx++;
         } else {
-            clearInterval(progressInterval);
+          clearInterval(progressInterval);
         }
       }, 4000);
 
       const res = await fetch("/api/prepare-spawn-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            name: finalName, 
-            address: connectedAddress 
+        body: JSON.stringify({
+          name: finalName,
+          address: connectedAddress
         })
       });
 
@@ -281,8 +281,8 @@ export default function MissionControl() {
         return;
       }
 
-      setRuntimeLogs(prev => [...prev, 
-        `[SAK] Agent payload generated: ${data.name}`,
+      setRuntimeLogs(prev => [...prev,
+      `[SAK] Agent payload generated: ${data.name}`,
         `[ZK] Groth16 Proof ready.`,
         `[SIGNING] Please confirm the transaction in your wallet to settle on 0G Galileo...`
       ]);
@@ -290,13 +290,13 @@ export default function MissionControl() {
 
       // Send the transaction using the connected wallet!
       const txHash = await sendTransactionAsync({
-          to: data.txPayload.to as `0x${string}`,
-          data: data.txPayload.data as `0x${string}`,
-          value: data.txPayload.value ? BigInt(data.txPayload.value) : BigInt(0)
+        to: data.txPayload.to as `0x${string}`,
+        data: data.txPayload.data as `0x${string}`,
+        value: data.txPayload.value ? BigInt(data.txPayload.value) : BigInt(0)
       });
 
       setRuntimeLogs(prev => [...prev,
-        `[TX] Transaction broadcasted: ${txHash}`,
+      `[TX] Transaction broadcasted: ${txHash}`,
         "[0G] Waiting for on-chain confirmation (Aggressive Polling)...",
       ]);
 
@@ -307,7 +307,7 @@ export default function MissionControl() {
       });
 
       setRuntimeLogs(prev => [...prev, `[0G] Settlement confirmed in block ${receipt.blockNumber}.`]);
-      
+
       // Immediately refresh the fleet and network status
       await fetchAgents();
       await fetchNetworkStatus();
@@ -316,7 +316,7 @@ export default function MissionControl() {
 
       setRuntimeLogs(prev => [...prev,
         `✅ Agent anchored on-chain!`,
-        `🔗 TX: ${txHash}`,
+      `🔗 TX: ${txHash}`,
         "✅ E2E ZK Genesis Cycle Finalized.",
       ]);
       toast.success(`Agent is live on 0G Galileo!`);
@@ -370,21 +370,21 @@ export default function MissionControl() {
           </div>
           <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
             <button
-                onClick={toggleLowPower}
-                className={cn(
-                    "px-4 py-4 rounded-xl flex items-center gap-2 transition-all border text-[10px] font-bold uppercase tracking-widest",
-                    lowPowerMode 
-                        ? "bg-brand-purple/20 border-brand-purple/40 text-brand-purple" 
-                        : "bg-white/5 border-white/10 text-white/40 hover:text-white"
-                )}
-                title={lowPowerMode ? "Enable High Performance UI (WebGL)" : "Disable GPU-Heavy Background"}
+              onClick={toggleLowPower}
+              className={cn(
+                "px-4 py-4 rounded-xl flex items-center gap-2 transition-all border text-[10px] font-bold uppercase tracking-widest",
+                lowPowerMode
+                  ? "bg-brand-purple/20 border-brand-purple/40 text-brand-purple"
+                  : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+              )}
+              title={lowPowerMode ? "Enable High Performance UI (WebGL)" : "Disable GPU-Heavy Background"}
             >
-                <Cpu size={14} className={lowPowerMode ? "" : "animate-pulse"} />
-                {lowPowerMode ? "Low Power: ON" : "Low Power: OFF"}
+              <Cpu size={14} className={lowPowerMode ? "" : "animate-pulse"} />
+              {lowPowerMode ? "Low Power: ON" : "Low Power: OFF"}
             </button>
             <ConnectButtonCustom />
             <motion.button
-              whileHover={isSpawning ? {} : { 
+              whileHover={isSpawning ? {} : {
                 scale: 1.05,
                 boxShadow: "0 0 25px rgba(0, 255, 209, 0.4), 0 0 60px rgba(0, 255, 209, 0.15)",
                 borderColor: "rgba(0, 255, 209, 0.5)",
@@ -394,8 +394,8 @@ export default function MissionControl() {
               transition={{ type: "spring", stiffness: 400, damping: 20 }}
               className={cn(
                 "px-8 py-4 rounded-xl flex items-center gap-3 transition-all font-bold text-sm uppercase tracking-[0.2em] border border-white/10",
-                isSpawning 
-                  ? "bg-white/10 text-white/40 cursor-not-allowed" 
+                isSpawning
+                  ? "bg-white/10 text-white/40 cursor-not-allowed"
                   : "bg-brand-cyan text-black hover:bg-brand-cyan/90"
               )}
             >
@@ -415,7 +415,7 @@ export default function MissionControl() {
         </header>
 
         {spawnError && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-center gap-3"
@@ -543,16 +543,16 @@ export default function MissionControl() {
       </div>
 
       {/* Agent Detail Modal */}
-      <AgentDetailModal 
-        agent={selectedAgent} 
-        onClose={() => setSelectedAgent(null)} 
+      <AgentDetailModal
+        agent={selectedAgent}
+        onClose={() => setSelectedAgent(null)}
       />
 
       {/* Naming Modal */}
       <AnimatePresence>
         {isNamingModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -578,26 +578,26 @@ export default function MissionControl() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-white/30 tracking-widest mb-2 px-1">Agent Designation</label>
-                  <input 
+                  <input
                     autoFocus
-                    type="text" 
+                    type="text"
                     placeholder="e.g. PR1M3-Trader"
                     value={tempAgentName}
                     onChange={(e) => setTempAgentName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && tempAgentName.trim()) {
-                          setIsNamingModalOpen(false);
-                          handleSpawn(tempAgentName);
+                        setIsNamingModalOpen(false);
+                        handleSpawn(tempAgentName);
                       }
                     }}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-white/10 focus:outline-none focus:border-brand-cyan/50 focus:bg-white/[0.07] transition-all"
                   />
                 </div>
-                
+
                 <button
                   onClick={() => {
-                      setIsNamingModalOpen(false);
-                      handleSpawn(tempAgentName);
+                    setIsNamingModalOpen(false);
+                    handleSpawn(tempAgentName);
                   }}
                   disabled={!tempAgentName.trim()}
                   className="w-full py-4 rounded-2xl bg-brand-cyan text-black font-bold uppercase tracking-widest text-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-cyan/90 transition-all shadow-lg shadow-brand-cyan/10"
