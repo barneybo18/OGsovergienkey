@@ -26,22 +26,43 @@ export async function GET() {
     const registry = new ethers.Contract(addresses.AgentRegistry, registryAbi, provider);
 
     // 3. Fetch Data
-    const [balance, nextAgentId] = await Promise.all([
-        provider.getBalance(wallet.address),
-        registry.nextAgentId().catch(() => 0n)
-    ]);
+    const nextAgentId = await registry.nextAgentId().catch(() => 0n);
+
+    // 4. Load ZK Stats
+    const metadataPath = path.resolve(process.cwd(), "src", "metadata", "registry.json");
+    let zkStats = {
+        lastProvingTime: 0,
+        avgProvingTime: 0,
+        status: "N/A",
+        history: [] as number[]
+    };
+
+    try {
+        if (fs.existsSync(metadataPath)) {
+            const content = JSON.parse(fs.readFileSync(metadataPath, "utf8"));
+            if (content.provingHistory && content.provingHistory.length > 0) {
+                const history = content.provingHistory;
+                zkStats.lastProvingTime = history[history.length - 1];
+                zkStats.avgProvingTime = Number((history.reduce((a: number, b: number) => a + b, 0) / history.length).toFixed(1));
+                zkStats.history = history;
+                
+                if (zkStats.lastProvingTime < 45) zkStats.status = "Fast • Groth16";
+                else if (zkStats.lastProvingTime < 90) zkStats.status = "Nominal • Groth16";
+                else zkStats.status = "Slow • Optimization Needed";
+            }
+        }
+    } catch (e) {
+        console.warn("[API] Failed to compute ZK stats:", e);
+    }
 
     return NextResponse.json({
       success: true,
-      wallet: {
-          address: wallet.address,
-          balance: ethers.formatEther(balance),
-      },
       network: {
           totalAgents: Number(nextAgentId) - 1,
           rpcStatus: "Healthy",
           indexerUrl: indexerUrl || "N/A"
-      }
+      },
+      zkStats
     });
 
   } catch (error) {

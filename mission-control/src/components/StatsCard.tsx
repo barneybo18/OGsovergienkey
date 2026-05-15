@@ -10,9 +10,11 @@ interface StatsCardProps {
   icon: ReactNode;
   trend?: string;
   status?: "online" | "loading" | "offline";
+  trendColor?: string;
+  history?: number[];
 }
 
-export function StatsCard({ title, value, label, icon, trend, status = "online" }: StatsCardProps) {
+export function StatsCard({ title, value, label, icon, trend, status = "online", trendColor, history }: StatsCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -33,21 +35,44 @@ export function StatsCard({ title, value, label, icon, trend, status = "online" 
         )}
       </div>
 
-      <div>
+      <div className="relative z-10">
         <h3 className="text-white/40 text-xs font-bold uppercase tracking-widest mb-1">{title}</h3>
         <div className="flex items-baseline gap-2 min-w-0">
           <span className="text-3xl font-bold tracking-tighter text-white truncate min-w-0">{value}</span>
           <span className="text-xs text-white/60 font-medium flex-shrink-0">{label}</span>
         </div>
         {trend && (
-          <p className="mt-2 text-[10px] text-brand-cyan/80 font-semibold tracking-wide flex items-center gap-1">
+          <p className={cn(
+            "mt-2 text-[10px] font-semibold tracking-wide flex items-center gap-1",
+            trendColor || "text-brand-cyan/80"
+          )}>
             {trend}
           </p>
         )}
       </div>
 
+      {/* Sparkline Overlay */}
+      {history && history.length > 1 && (
+        <div className="absolute bottom-0 left-0 right-0 h-12 overflow-hidden pointer-events-none opacity-20">
+          <svg viewBox={`0 0 ${history.length - 1} 100`} className="w-full h-full preserve-3d" preserveAspectRatio="none">
+            <polyline
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="4"
+              points={history.map((val, i) => `${i},${100 - (val / Math.max(...history)) * 80}`).join(" ")}
+              className="text-brand-cyan"
+            />
+          </svg>
+        </div>
+      )}
+
       {/* Background patterns */}
       <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
     </motion.div>
   );
+}
+
+// Utility to merge classes (already in page.tsx but needed here or imported)
+function cn(...inputs: any[]) {
+    return inputs.filter(Boolean).join(" ");
 }

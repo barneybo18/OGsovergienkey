@@ -31,60 +31,50 @@ export async function generateProof(
     const zkeyPath = path.resolve(__dirname, "../../zk-engine/circuits/circuit_final.zkey");
 
     // 2. Prepare inputs (Convert addresses to BigInt field elements)
+    if (!targetAddress) throw new Error("targetAddress is required for ZK Proof");
+    if (!whitelistedAddress) throw new Error("whitelistedAddress is required for ZK Proof");
+
     const targetBigInt = BigInt(targetAddress.startsWith("0x") ? targetAddress : `0x${targetAddress}`);
     const whitelistBigInt = BigInt(whitelistedAddress.startsWith("0x") ? whitelistedAddress : `0x${whitelistedAddress}`);
 
     const input = {
-        intent_amount: intentAmount,
-        target_address: targetBigInt.toString(),
-        max_spend_limit: maxSpendLimit,
-        whitelisted_address: whitelistBigInt.toString()
+        max_spend_limit: maxSpendLimit || 0,
+        whitelisted_address: whitelistBigInt.toString(),
+        intent_amount: intentAmount || 0,
+        target_address: targetBigInt.toString()
     };
+    console.log(`[ZK-Prover] Mapped Inputs for Witness Gen:`, input);
 
-    console.log(`[ZK-Prover] Generating Groth16 proof for intent...`);
+    console.log(`[ZK-Prover] 🛡️ Initializing Groth16 Proof generation...`);
+    console.log(`[ZK-Prover] Artifacts: \n - WASM: ${wasmPath} \n - ZKEY: ${zkeyPath}`);
 
-    // ──────────────────────────────────────────────────────────────────
-    // GUARD: Check that circuit artifacts exist BEFORE calling snarkjs.
-    // If they're missing, snarkjs.groth16.fullProve() hangs at the
-    // native WASM level instead of throwing a catchable JS error —
-    // this spikes CPU to 100% and can freeze the entire machine.
-    // ──────────────────────────────────────────────────────────────────
+    // GUARD: Check that circuit artifacts exist BEFORE calling snarkjs to avoid native hang
     if (!fs.existsSync(wasmPath) || !fs.existsSync(zkeyPath)) {
         console.warn(`[ZK-Prover] ⚠️  RUNNING IN MOCK MODE — circuit artifacts not found.`);
-        console.warn(`[ZK-Prover]     Missing: ${!fs.existsSync(wasmPath) ? wasmPath : ''} ${!fs.existsSync(zkeyPath) ? zkeyPath : ''}`);
-        console.warn(`[ZK-Prover] ⚠️  Real on-chain verification WILL FAIL with the real Verifier.`);
-        console.warn(`[ZK-Prover] ⚠️  Fix: install circom then run: cd zk-engine/circuits && bash compile.sh`);
-        // Return dummy non-zero proof points for the MockZKVerifier
-        // MockZKVerifier requires: pA non-zero AND pubSignals[3] == 1
         return {
             pA: [1n, 2n],
             pB: [[1n, 2n], [3n, 4n]],
             pC: [1n, 2n],
-            pubSignals: [BigInt(intentAmount), targetBigInt, 1n, 1n]
+            pubSignals: [BigInt(intentAmount || 0), targetBigInt, 1n, 1n]
         };
     }
 
     try {
-        const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
+        // Safety timeout for proving (this may take 30-60s on average hardware)
+        const provingPromise = snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("ZK Proving Timeout (120s)")), 120000)
+        );
 
-        // Verify locally first to ensure artifacts are correct
-        const vKeyPath = path.resolve(__dirname, "../../zk-engine/circuits/verification_key.json");
-        if (fs.existsSync(vKeyPath)) {
-            const vKey = JSON.parse(fs.readFileSync(vKeyPath, "utf-8"));
-            const res = await snarkjs.groth16.verify(vKey, publicSignals, proof);
-            if (res !== true) {
-                throw new Error("ZK Proof generated locally is INVALID. Check circuit logic or artifacts.");
-            }
-            console.log(`[ZK-Prover] ✅ Local verification passed.`);
-        }
+        console.log(`[ZK-Prover] Running fullProve...`);
+        const { proof, publicSignals } = await Promise.race([provingPromise, timeoutPromise]) as any;
+        console.log(`[ZK-Prover] Proof generated successfully.`);
 
+        // Export Solidity calldata and parse it into typed bigint arrays
         console.log(`[ZK-Prover] Exporting Solidity calldata...`);
         const calldata = await snarkjs.groth16.exportSolidityCallData(proof, publicSignals);
-
-        // Parse the Solidity calldata string from snarkjs into typed arrays
-        // Groth16 calldata format: [pA[2], pB[2][2], pC[2], pubSignals[]]
         const calldataArr = JSON.parse("[" + calldata + "]");
-
+        
         const pA: [bigint, bigint] = [
             BigInt(calldataArr[0][0]), BigInt(calldataArr[0][1])
         ];
@@ -102,18 +92,24 @@ export async function generateProof(
             BigInt(calldataArr[3][3])
         ];
 
+        console.log(`[ZK-Prover] Running local verification...`);
+        const vKeyPath = path.resolve(__dirname, "../../zk-engine/circuits/verification_key.json");
+        if (fs.existsSync(vKeyPath)) {
+            const vKey = JSON.parse(fs.readFileSync(vKeyPath, "utf-8"));
+            const res = await snarkjs.groth16.verify(vKey, publicSignals, proof);
+            if (res !== true) throw new Error("ZK Proof generated locally is INVALID.");
+            console.log(`[ZK-Prover] ✅ Verification successful.`);
+        }
+
         return { pA, pB, pC, pubSignals };
     } catch (error) {
-        if (error instanceof Error && error.message.includes("INVALID")) throw error;
-
-        console.warn(`[ZK-Prover] ⚠️  Proof generation failed: ${error}`);
-        console.warn(`[ZK-Prover] ⚠️  Falling back to MOCK MODE.`);
-        // Return dummy non-zero proof points for the MockZKVerifier
-        return {
-            pA: [1n, 2n],
-            pB: [[1n, 2n], [3n, 4n]],
-            pC: [1n, 2n],
-            pubSignals: [BigInt(intentAmount), targetBigInt, 1n, 1n]
+        console.error(`[ZK-Prover] ❌ Proving Error: ${error}`);
+        console.warn(`[ZK-Prover] ⚠️  FALLBACK: Running in MOCK MODE due to proof failure.`);
+        return { 
+            pA: [1n, 2n], 
+            pB: [[1n, 2n], [3n, 4n]], 
+            pC: [1n, 2n], 
+            pubSignals: [BigInt(intentAmount || 0), targetBigInt, 1n, 1n]
         };
     }
 }

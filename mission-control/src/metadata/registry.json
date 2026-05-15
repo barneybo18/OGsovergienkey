@@ -1,0 +1,21 @@
+{
+  "rootHashes": {
+    "0xaca5e68b737fc303252231aa49e8e3865277c3e3d672fede16b8d1aeffde07b0": {
+      "name": "PR1M3"
+    },
+    "0x5434cda3f22b78bcc6d5609a0161f99b2a92d8c4410d47137927d5eb05b41a74": {
+      "name": "dave"
+    },
+    "0x5ffe582dd7d1d45f16c4bbdfad0a7ed362c9a2413b0d425adc60bd16a1a36862": {
+      "name": "new"
+    },
+    "0xb325d4993df22f36933b7452fee50dc41c44483101ecc0af3b3d37fb278a1f28": {
+      "name": "yh"
+    }
+  },
+  "provingHistory": [
+    10.5,
+    8,
+    10.5
+  ]
+}
