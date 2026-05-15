@@ -19,19 +19,41 @@ export class ZeroGService {
     private rpcEndpoint: string;
 
     constructor() {
-        if (!process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY is not set in .env");
+        const usePrivateKey = process.env.USE_PRIVATE_KEY_FOR_TESTING === "true";
+        if (usePrivateKey && !process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY is not set in .env");
         if (!process.env.RPC_ENDPOINT) throw new Error("RPC_ENDPOINT is not set in .env");
 
         this.rpcEndpoint = process.env.RPC_ENDPOINT;
-        // NOTE: Default must be the Galileo turbo indexer — Newton 'standard' indexer is dead
         const indexerUrl = process.env.INDEXER_URL || "https://indexer-storage-testnet-turbo.0g.ai";
-        const privateKey = process.env.PRIVATE_KEY;
+        const privateKey = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
 
         this.provider = new ethers.JsonRpcProvider(this.rpcEndpoint);
         this.wallet = new ethers.Wallet(privateKey, this.provider);
         this.indexer = new Indexer(indexerUrl);
 
         console.log(`[0G-Service] Initialized with RPC: ${this.rpcEndpoint}, Indexer: ${indexerUrl}`);
+    }
+
+    /**
+     * Compute Merkle Root for a buffer without uploading.
+     */
+    async getMerkleRoot(data: Buffer): Promise<string> {
+        const file = new MemData(data);
+        const [tree, treeErr] = await file.merkleTree();
+        if (treeErr !== null || !tree) throw new Error(`Merkle tree error: ${treeErr}`);
+        const rootHash = tree.rootHash();
+        if (!rootHash) throw new Error("Root hash is null");
+        return rootHash;
+    }
+
+    /**
+     * Background upload (Fire and Forget)
+     */
+    async backgroundUpload(data: Buffer, label: string): Promise<void> {
+        const file = new MemData(data);
+        this.uploadWithRetry(file, label).catch(err => {
+            console.warn(`[${label}] Background upload failed (non-critical): ${err.message}`);
+        });
     }
 
     private async uploadWithRetry(file: any, label: string): Promise<string> {

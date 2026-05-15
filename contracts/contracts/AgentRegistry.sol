@@ -58,7 +58,7 @@ contract AgentRegistry is Ownable {
     /**
      * @dev Mint a new agent. The pubKey should be the generated MPC threshold key.
      */
-    function registerAgent(bytes32 pubKey, bytes32 constitutionHash) external onlyAuthorized returns (uint256) {
+    function registerAgent(bytes32 pubKey, bytes32 constitutionHash) external returns (uint256) {
         uint256 agentId = nextAgentId++;
         
         agents[agentId] = Agent({

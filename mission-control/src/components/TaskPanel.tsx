@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useAccount } from 'wagmi';
-import { Terminal, Send, Loader2, CheckCircle2, History, ExternalLink, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAccount, useConfig, useSendTransaction } from 'wagmi';
+import { waitForTransactionReceipt } from 'wagmi/actions';
+import { Terminal, Send, Loader2, CheckCircle2, History, ExternalLink, ShieldCheck, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 interface Task {
   id: string;
@@ -15,12 +17,16 @@ interface Task {
 
 export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }) {
   const { address, isConnected } = useAccount();
+  const config = useConfig();
+  const { sendTransactionAsync } = useSendTransaction();
   const [instruction, setInstruction] = useState('');
+  const [taskType, setTaskType] = useState('Transfer');
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [fetching, setFetching] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [isProving, setIsProving] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<string>('');
 
   // Strip "ID: " from agentId if present
   const cleanId = agentId.replace('ID: ', '');
@@ -48,53 +54,54 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
   const handleExecute = async () => {
     if (!instruction) return;
     setLoading(true);
-    setStatus('Dispatching ZK task...');
+    setStatus('Preparing ZK Intent...');
     try {
+      // 1. Prepare the task (Generate ZK proof on server, but don't sign)
       const res = await fetch('/api/agent/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: cleanId, instruction }),
+        body: JSON.stringify({ 
+          agentId: cleanId, 
+          instruction: `[${taskType}] ${instruction}`,
+          type: taskType
+        }),
       });
       const data = await res.json();
-      if (data.success) {
-        setInstruction('');
+
+      if (!data.success) {
+        toast.error("Preparation failed: " + data.message);
         setLoading(false);
         setStatus('');
-        // Task is proving in the background — poll the chain every 15s
-        setIsProving(true);
-        setStatus('Generating ZK Proof... (30-60s)');
-        let attempts = 0;
-        const maxAttempts = 12; // 12 * 15s = 3 minutes
-        // Bug fix: capture prevCount in a ref to avoid stale closure inside setInterval
-        const prevCountRef = { current: tasks.length };
-        const poll = setInterval(async () => {
-          attempts++;
-          await fetchTasks();
-          setStatus(`Proving in background... polling chain (${attempts}/${maxAttempts})`);
-          // Use functional update + ref to avoid stale closure on tasks.length
-          setTasks(prev => {
-            if (prev.length > prevCountRef.current) {
-              clearInterval(poll);
-              setIsProving(false);
-              setStatus('');
-            }
-            return prev;
-          });
-          if (attempts >= maxAttempts) {
-            clearInterval(poll);
-            setIsProving(false);
-            setStatus('Proof may still be processing — click Refresh.');
-            setTimeout(() => setStatus(''), 5000);
-          }
-        }, 15000);
-      } else {
-        alert("Execution failed: " + data.message);
-        setLoading(false);
-        setStatus('');
+        return;
       }
-    } catch (e) {
+
+      setStatus('Waiting for wallet signature...');
+      
+      // 2. Sign and broadcast via user wallet
+      const txHash = await sendTransactionAsync({
+        to: data.txPayload.to as `0x${string}`,
+        data: data.txPayload.data as `0x${string}`,
+        value: data.txPayload.value ? BigInt(data.txPayload.value) : BigInt(0)
+      });
+
+      setLastTxHash(txHash);
+      setStatus('Confirming on-chain settlement...');
+
+      // 3. Wait for confirmation
+      const receipt = await waitForTransactionReceipt(config, {
+        hash: txHash,
+        confirmations: 1,
+      });
+
+      toast.success("Action successfully executed!");
+      setInstruction('');
+      setLoading(false);
+      setStatus('');
+      fetchTasks();
+
+    } catch (e: any) {
       console.error(e);
-      alert("Error dispatching task.");
+      toast.error(e.message || "Execution failed.");
       setLoading(false);
       setStatus('');
     }
@@ -104,9 +111,26 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
     <div className="flex flex-col gap-8 h-full">
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-brand-cyan uppercase tracking-[0.2em] flex items-center gap-2">
-            <Terminal size={14} /> Sovereign Command Console
-          </h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-sm font-bold text-brand-cyan uppercase tracking-[0.2em] flex items-center gap-2">
+              <Terminal size={14} /> Sovereign Command Console
+            </h3>
+            
+            <div className="relative group/type">
+              <select 
+                value={taskType}
+                onChange={(e) => setTaskType(e.target.value)}
+                disabled={!isOwner || loading}
+                className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white hover:bg-white/10 transition-all cursor-pointer focus:outline-none pr-8"
+              >
+                <option value="Transfer">Transfer</option>
+                <option value="Swap">Swap</option>
+                <option value="Message">Message</option>
+                <option value="Custom">Custom</option>
+              </select>
+              <ChevronDown size={10} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+            </div>
+          </div>
           {isOwner && (
             <span className="text-[10px] text-green-400 font-bold flex items-center gap-1 bg-green-500/10 px-2 py-0.5 rounded-md border border-green-500/20">
               <ShieldCheck size={10} /> Authorized
@@ -148,6 +172,22 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
           <div className="mt-3 p-3 rounded-xl bg-brand-cyan/5 border border-brand-cyan/20 flex items-center gap-3">
             <Loader2 className="animate-spin text-brand-cyan shrink-0" size={14} />
             <p className="text-[11px] text-brand-cyan font-mono">{status || 'ZK proof running in background...'}</p>
+          </div>
+        )}
+        {lastTxHash && !loading && (
+          <div className="mt-4 p-4 rounded-2xl bg-green-500/5 border border-green-500/20 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Verified Settlement</span>
+              <a 
+                href={`https://scan-testnet.0g.ai/tx/${lastTxHash}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[10px] text-brand-cyan hover:underline flex items-center gap-1 font-bold"
+              >
+                View on Explorer <ExternalLink size={10} />
+              </a>
+            </div>
+            <p className="text-xs text-white/60 font-mono truncate">{lastTxHash}</p>
           </div>
         )}
       </section>
@@ -198,12 +238,12 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
                     <p className="text-[9px] text-white/30 uppercase font-bold mb-2 tracking-widest flex items-center justify-between">
                       On-Chain Output
                       <a 
-                        href={`https://indexer-storage-testnet-turbo.0g.ai/file/${task.result}`}
-                        target="_blank"
+                        href={`https://scan-testnet.0g.ai/address/${owner}`} 
+                        target="_blank" 
                         rel="noopener noreferrer"
                         className="text-brand-cyan hover:underline flex items-center gap-1"
                       >
-                        <ExternalLink size={8} /> View on 0G DA
+                        <ExternalLink size={8} /> View on 0G Chain
                       </a>
                     </p>
                     <p className="text-xs text-brand-cyan font-mono leading-tight break-all">{task.result}</p>

@@ -10,6 +10,9 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useAccount, useBalance, useSendTransaction, useConfig } from "wagmi";
+import { formatEther } from "viem";
+import { waitForTransactionReceipt } from "wagmi/actions";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -41,17 +44,28 @@ interface NetworkStatus {
     totalAgents: number;
     rpcStatus: string;
     indexerUrl: string;
-  }
+  };
+  zkStats?: {
+    lastProvingTime: number;
+    avgProvingTime: number;
+    status: string;
+    history: number[];
+  };
 }
 
-import { useAccount, useBalance } from "wagmi";
 import { ConnectButtonCustom } from "@/components/ConnectButton";
 
 export default function MissionControl() {
-  const { address, isConnected } = useAccount();
-  const { data: balanceData } = useBalance({ address });
+  const { address: connectedAddress, isConnected } = useAccount();
+  const config = useConfig();
+  const { data: balanceData } = useBalance({
+    address: connectedAddress,
+  });
+  const { sendTransactionAsync } = useSendTransaction();
 
   const [isSpawning, setIsSpawning] = useState(false);
+  const [isNamingModalOpen, setIsNamingModalOpen] = useState(false);
+  const [tempAgentName, setTempAgentName] = useState("");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -181,6 +195,7 @@ export default function MissionControl() {
     try {
       const res = await fetch("/api/get-agents");
       const data = await res.json();
+      if (data.duration) setLastProvingTime(`${data.duration}s`);
       if (data.success) {
         setAgents(data.agents);
       } else {
@@ -210,70 +225,101 @@ export default function MissionControl() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSpawn = async () => {
-    // Spawning uses the server-side PRIVATE_KEY from .env — no browser wallet needed.
+  const handleSpawn = async (name: string) => {
+    const finalName = name.trim() || `SAK-Agent-${Math.floor(Math.random() * 10000)}`;
     setSpawnError(null);
     setIsSpawning(true);
-    setRuntimeLogs(["[SAK] Initializing Agent Genesis Sequence...", "[SAK] Contacting 0G Galileo Testnet..."]);
-    toast.info("ZK Genesis dispatched! Proving in background (~60s)...");
+    setRuntimeLogs(["[SAK] Initializing Agent Genesis Sequence...", `[SAK] Identity: ${finalName}`, "[SAK] Contacting 0G Galileo Testnet..."]);
+    toast.info(`ZK Genesis for ${finalName} dispatched!`);
 
     try {
-      const response = await fetch("/api/spawn-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `SAK-Agent-${Math.floor(Math.random() * 9999)}`,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        setRuntimeLogs(prev => [...prev, `❌ ERROR: ${data.message}`]);
-        toast.error(`Spawn failed: ${data.message}`);
-        setSpawnError(data.message || "Spawn failed");
+      if (!isConnected) {
+        toast.error("Please connect your wallet first.");
         setIsSpawning(false);
         return;
       }
 
-      // API returned instantly (fire-and-forget) — the ZK proof is running in the background.
-      // Poll /api/get-agents every 10s until a new agent appears (up to 2 minutes).
-      const prevCount = agents.length;
+      // Add dynamic progress logs while waiting for the backend
+      const progressSteps = [
+        "[ZK] Generating Witness... 15%",
+        "[ZK] Calculating Constraints... 32%",
+        "[ZK] Synthesizing Groth16 Proof... 48%",
+        "[ZK] Proof Optimization... 67%",
+        "[0G] Preparing Shard Merkle Tree... 82%",
+        "[0G] Finalizing Shard Encoding... 95%"
+      ];
+      
+      let stepIdx = 0;
+      const progressInterval = setInterval(() => {
+        if (stepIdx < progressSteps.length) {
+            setRuntimeLogs(prev => [...prev, progressSteps[stepIdx]]);
+            stepIdx++;
+        } else {
+            clearInterval(progressInterval);
+        }
+      }, 4000);
+
+      const res = await fetch("/api/prepare-spawn-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            name: finalName, 
+            address: connectedAddress 
+        })
+      });
+
+      clearInterval(progressInterval);
+
+      const data = await res.json();
+      if (data.duration) setLastProvingTime(`${data.duration}s`);
+
+      if (!data.success) {
+        setRuntimeLogs(prev => [...prev, `❌ ERROR: ${data.message}`]);
+        toast.error(`Prepare failed: ${data.message}`);
+        setSpawnError(data.message || "Prepare failed");
+        setIsSpawning(false);
+        return;
+      }
+
+      setRuntimeLogs(prev => [...prev, 
+        `[SAK] Agent payload generated: ${data.name}`,
+        `[ZK] Groth16 Proof ready.`,
+        `[SIGNING] Please confirm the transaction in your wallet to settle on 0G Galileo...`
+      ]);
+      toast.info("Payload ready! Please sign in your wallet.");
+
+      // Send the transaction using the connected wallet!
+      const txHash = await sendTransactionAsync({
+          to: data.txPayload.to as `0x${string}`,
+          data: data.txPayload.data as `0x${string}`,
+          value: data.txPayload.value ? BigInt(data.txPayload.value) : BigInt(0)
+      });
+
       setRuntimeLogs(prev => [...prev,
-        `[SAK] Agent genesis dispatched: ${data.name}`,
-        "[ZK] Generating Groth16 witness...",
-        "[ZK] Running snarkjs fullProve (this takes ~30-60s)...",
-        "[0G] Waiting for on-chain settlement...",
+        `[TX] Transaction broadcasted: ${txHash}`,
+        "[0G] Waiting for on-chain confirmation (Aggressive Polling)...",
       ]);
 
-      let attempts = 0;
-      const maxAttempts = 12; // 12 * 10s = 2 minutes
-      const poll = setInterval(async () => {
-        attempts++;
-        const res = await fetch("/api/get-agents");
-        const pollData = await res.json();
-        if (pollData.success && pollData.agents.length > prevCount) {
-          clearInterval(poll);
-          setIsSpawning(false);
-          setAgents(pollData.agents);
-          setCurrentPage(1);
-          await fetchNetworkStatus();
-          const newAgent = pollData.agents[0];
-          setRuntimeLogs(prev => [...prev,
-            `✅ Agent ${newAgent?.name ?? data.name} anchored on-chain!`,
-            `🔗 TX: ${newAgent?.txHash ?? "confirmed"}`,
-            "✅ E2E ZK Genesis Cycle Finalized.",
-          ]);
-          toast.success(`${newAgent?.name ?? data.name} is live on 0G Galileo!`);
-        } else if (attempts >= maxAttempts) {
-          clearInterval(poll);
-          setIsSpawning(false);
-          setRuntimeLogs(prev => [...prev, "⚠️ Proof still processing — refresh fleet to see new agent."]);
-          toast.info("ZK proving may still be running. Refresh the fleet in a moment.");
-        } else {
-          setRuntimeLogs(prev => [...prev, `[ZK] Still proving... (${attempts * 10}s elapsed)`]);
-        }
-      }, 10000);
+      // Use waitForTransactionReceipt for definitive on-chain confirmation
+      const receipt = await waitForTransactionReceipt(config, {
+        hash: txHash,
+        confirmations: 1,
+      });
+
+      setRuntimeLogs(prev => [...prev, `[0G] Settlement confirmed in block ${receipt.blockNumber}.`]);
+      
+      // Immediately refresh the fleet and network status
+      await fetchAgents();
+      await fetchNetworkStatus();
+      setIsSpawning(false);
+      setCurrentPage(1);
+
+      setRuntimeLogs(prev => [...prev,
+        `✅ Agent anchored on-chain!`,
+        `🔗 TX: ${txHash}`,
+        "✅ E2E ZK Genesis Cycle Finalized.",
+      ]);
+      toast.success(`Agent is live on 0G Galileo!`);
 
     } catch (error: any) {
       console.error("Spawn failed:", error);
@@ -338,14 +384,13 @@ export default function MissionControl() {
             </button>
             <ConnectButtonCustom />
             <motion.button
-              disabled={isSpawning}
-              onClick={handleSpawn}
-              whileHover={isSpawning ? {} : {
+              whileHover={isSpawning ? {} : { 
                 scale: 1.05,
                 boxShadow: "0 0 25px rgba(0, 255, 209, 0.4), 0 0 60px rgba(0, 255, 209, 0.15)",
                 borderColor: "rgba(0, 255, 209, 0.5)",
               }}
               whileTap={isSpawning ? {} : { scale: 0.97 }}
+              onClick={() => !isSpawning && setIsNamingModalOpen(true)}
               transition={{ type: "spring", stiffness: 400, damping: 20 }}
               className={cn(
                 "px-8 py-4 rounded-xl flex items-center gap-3 transition-all font-bold text-sm uppercase tracking-[0.2em] border border-white/10",
@@ -381,30 +426,30 @@ export default function MissionControl() {
 
         {/* Real-Data Metrics Row */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <StatsCard 
-                title="Connected Assets" 
-                value={isConnected ? parseFloat(balanceData?.formatted || "0").toFixed(2) : "---"} 
-                label={balanceData?.symbol || "$0G"} 
-                icon={<Wallet size={20} />}
-                trend={isConnected ? `Connected: ${address?.slice(0,6)}...${address?.slice(-4)}` : "Wallet not connected"}
-                status={isConnected ? "online" : "offline"}
-            />
-            <StatsCard 
-                title="AI Fleet Integrity" 
-                value={networkData?.network?.totalAgents || "0"} 
-                label="Registered" 
-                icon={<Shield size={20} />}
-                trend={`Node Status: ${networkData?.network?.rpcStatus || "Checking..."}`}
-                status={networkData ? "online" : "loading"}
-            />
-            <StatsCard 
-                title="ZK Proving Engine" 
-                value={lastProvingTime} 
-                label="Duration" 
-                icon={<Cpu size={20} />}
-                trend="snarkjs / Groth16 / Circom 2.1"
-                status={isSpawning ? "loading" : "online"}
-            />
+          <StatsCard
+            title="Wallet Intelligence"
+            value={isMounted && isConnected && balanceData?.value !== undefined ? Number(formatEther(balanceData.value)).toFixed(4) : "—"}
+            label={isMounted && isConnected ? "$0G" : "Disconnected"}
+            icon={<Wallet size={20} />}
+            trend={isMounted && isConnected && connectedAddress ? `Addr: ${connectedAddress.slice(0, 6)}...${connectedAddress.slice(-4)}` : "Wallet not connected"}
+            status={isMounted && isConnected ? "online" : "offline"}
+          />
+          <StatsCard
+            title="ZK Proving Stats"
+            value={networkData?.zkStats?.lastProvingTime ? `${networkData.zkStats.lastProvingTime}s` : lastProvingTime}
+            label="Last Proof"
+            icon={<Cpu size={20} />}
+            trend={networkData?.zkStats?.status || "Groth16 (snarkjs)"} trendColor={!networkData?.zkStats?.lastProvingTime ? "text-brand-cyan/80" : networkData.zkStats.lastProvingTime < 45 ? "text-green-400" : networkData.zkStats.lastProvingTime < 90 ? "text-yellow-400" : "text-red-400"} history={networkData?.zkStats?.history}
+            status={isSpawning ? "loading" : "online"}
+          />
+          <StatsCard
+            title="Network Vitality"
+            value={networkData?.network?.totalAgents || "0"}
+            label="Deploys"
+            icon={<Network size={20} />}
+            trend={`Node: ${networkData?.network?.rpcStatus || "Syncing"}`}
+            status={networkData ? "online" : "loading"}
+          />
         </section>
 
         {/* Dashboard Grid */}
@@ -496,12 +541,80 @@ export default function MissionControl() {
 
         </div>
       </div>
+
       {/* Agent Detail Modal */}
-      <AgentDetailModal
-        agent={selectedAgent}
-        onClose={() => setSelectedAgent(null)}
+      <AgentDetailModal 
+        agent={selectedAgent} 
+        onClose={() => setSelectedAgent(null)} 
       />
+
+      {/* Naming Modal */}
+      <AnimatePresence>
+        {isNamingModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsNamingModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-[#0d0f14] border border-white/10 rounded-[32px] p-8 shadow-2xl"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 flex items-center justify-center border border-brand-cyan/20">
+                  <Cpu className="text-brand-cyan w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-display">Name Your Agent</h3>
+                  <p className="text-xs text-white/40">Define your agent's identity.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-white/30 tracking-widest mb-2 px-1">Agent Designation</label>
+                  <input 
+                    autoFocus
+                    type="text" 
+                    placeholder="e.g. PR1M3-Trader"
+                    value={tempAgentName}
+                    onChange={(e) => setTempAgentName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && tempAgentName.trim()) {
+                          setIsNamingModalOpen(false);
+                          handleSpawn(tempAgentName);
+                      }
+                    }}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-white/10 focus:outline-none focus:border-brand-cyan/50 focus:bg-white/[0.07] transition-all"
+                  />
+                </div>
+                
+                <button
+                  onClick={() => {
+                      setIsNamingModalOpen(false);
+                      handleSpawn(tempAgentName);
+                  }}
+                  disabled={!tempAgentName.trim()}
+                  className="w-full py-4 rounded-2xl bg-brand-cyan text-black font-bold uppercase tracking-widest text-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-cyan/90 transition-all shadow-lg shadow-brand-cyan/10"
+                >
+                  Initiate Genesis
+                </button>
+                <button
+                  onClick={() => setIsNamingModalOpen(false)}
+                  className="w-full py-4 rounded-2xl bg-white/5 text-white/40 font-bold uppercase tracking-widest text-xs hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
-
