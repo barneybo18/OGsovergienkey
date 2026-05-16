@@ -6,8 +6,8 @@ import { cookieToInitialState } from "wagmi";
 import { Web3Provider, wagmiConfig } from "@/components/Web3Provider";
 
 export const metadata: Metadata = {
-  title: "Sovereign Agent Keys | Mission Control",
-  description: "0G Labs Hackathon Mission Control",
+  title: "Enclave Keys | 0G Dashboard",
+  description: "0G Labs Hackathon Sovereign Agent Infrastructure",
 };
 
 export default async function RootLayout({

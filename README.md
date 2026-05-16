@@ -1,11 +1,11 @@
 <p align="center">
-  <h1 align="center">🔑 Sovereign Agent Keys (SAK)</h1>
-  <p align="center"><strong>Non-Custodial AI Agent Infrastructure on the 0G Network</strong></p>
+  <h1 align="center">🔑 Enclave Keys (EK)</h1>
+  <p align="center"><strong>Non-Custodial Sovereign Agent Infrastructure on the 0G Network</strong></p>
 </p>
 
 <p align="center">
-  <a href="https://scan-testnet.0g.ai"><img src="https://img.shields.io/badge/Network-0G%20Galileo%20Testnet-00FFD1?style=for-the-badge&logo=ethereum&logoColor=white" /></a>
-  <a href="#"><img src="https://img.shields.io/badge/Chain%20ID-16602-9B6DFF?style=for-the-badge" /></a>
+  <a href="https://chainscan.0g.ai"><img src="https://img.shields.io/badge/Network-0G%20Mainnet-00FFD1?style=for-the-badge&logo=ethereum&logoColor=white" /></a>
+  <a href="https://scan-testnet.0g.ai"><img src="https://img.shields.io/badge/Network-0G%20Testnet-9B6DFF?style=for-the-badge&logo=ethereum&logoColor=white" /></a>
   <a href="https://github.com/iden3/snarkjs"><img src="https://img.shields.io/badge/ZK-Groth16%20%2F%20Circom-F97316?style=for-the-badge" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-FACC15?style=for-the-badge" /></a>
 </p>
@@ -78,6 +78,26 @@ Today's AI agents are powerful but **custodial**. Their keys are held by platfor
 
 ---
 
+## 📈 Product Value & Market Potential
+
+### 🎯 Market Fit
+The explosion of AI agents (AutoGPT, BabyAGI) has created a critical infrastructure gap: **Trustless Autonomy.** Today's agents are either custodial (platforms hold the keys) or unsafe (keys stored in plain text). Enclave Keys fills this gap by providing a **Non-Custodial Sovereign Layer** for AI, enabling agents to handle real value on-chain without centralized risk.
+
+### 🛡️ Problem-Solving Capability
+We solve the **"Black Box Agent"** problem. By combining 0G’s high-throughput Data Availability with ZK-SNARKs, we ensure that an agent’s actions are not just autonomous, but *verifiably* compliant with a human-defined "Constitution." If an agent tries to break its rules, the ZK proof fails, and the transaction is rejected on-chain.
+
+### 💎 User Value
+*   **Total Sovereignty:** Users retain 100% control over agent identities via MPC sharding. No backend ever sees a full private key.
+*   **Immutable Auditability:** Every decision the agent makes is anchored on 0G DA, providing a permanent, audit-ready trail for high-frequency operations.
+*   **Cost Efficiency:** Leveraging 0G allows for a high-volume "stream of consciousness" log that would be prohibitively expensive on traditional L2s.
+
+### 🚀 Growth Roadmap
+1.  **V1 (Hackathon):** Core registry, ZK-enforced limits, and 0G Storage/DA integration.
+2.  **V2 (Decentralization):** Transition from a centralized orchestrator to a decentralized network of TEE-enabled MPC nodes.
+3.  **V3 (Ecosystem):** A "Constitution Marketplace" where users can subscribe their agents to pre-verified ZK-risk models for DeFi, Gaming, and DAO Governance.
+
+---
+
 ## Features
 
 ### 🎯 Agent Lifecycle
@@ -100,6 +120,22 @@ Today's AI agents are powerful but **custodial**. Their keys are held by platfor
 
 ---
 
+## 🛠️ Project Status: Real vs. Simulated
+
+To ensure full transparency for the 0G Hackathon, here is the breakdown of implemented production logic vs. simulated MVP components:
+
+| Feature | Status | Implementation Detail |
+|---|---|---|
+| **On-Chain Registry** | 🟢 **REAL** | `AgentRegistry.sol` is fully deployed and manages agent lifecycle and intent logs on 0G Mainnet/Testnet. |
+| **ZK Proving** | 🟢 **REAL** | Every agent action generates a valid Groth16 proof using `snarkjs`. Proofs are verified on-chain by `Verifier.sol`. |
+| **0G Storage** | 🟢 **REAL** | MPC shards and metadata are physically uploaded to 0G Storage nodes via the `@0gfoundation/0g-ts-sdk`. |
+| **0G DA Logging** | 🟢 **REAL** | Raw intent data is posted to 0G DA to ensure an immutable, high-throughput audit trail. |
+| **MPC Network** | 🟡 **SIMULATED** | Shard generation (SSS) is currently handled by a centralized orchestrator. In production, this will be distributed across a network of TEE-enabled nodes. |
+| **Key Custody** | 🟡 **SIMULATED** | While shards are stored on 0G, the reconstruction logic currently lives in the orchestrator memory rather than a decentralized signing network. |
+| **Dashboard** | 🟢 **REAL** | The Mission Control UI is a real-time operator interface reading directly from the 0G Chain and Storage nodes. |
+
+---
+
 ## Module Breakdown
 
 | Module | Stack | Purpose |
@@ -117,9 +153,9 @@ Today's AI agents are powerful but **custodial**. Their keys are held by platfor
 
 | Contract | Address | Explorer |
 |---|---|---|
-| **AgentRegistry** | `0xFC2Cb6aF333934dBF2130fbaDa4979b54cBBdec0` | [View ↗](https://scan-testnet.0g.ai/address/0xFC2Cb6aF333934dBF2130fbaDa4979b54cBBdec0) |
-| **Verifier (Groth16)** | `0xdBE4c770673c4B86d27c2a1906d702027F4831c9` | [View ↗](https://scan-testnet.0g.ai/address/0xdBE4c770673c4B86d27c2a1906d702027F4831c9) |
-| **MockZKVerifier** | `0xa64e0aD0b07Dcf180C33232322054A6802037DBD` | [View ↗](https://scan-testnet.0g.ai/address/0xa64e0aD0b07Dcf180C33232322054A6802037DBD) |
+| **AgentRegistry** | `0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E` | [View ↗](https://chainscan-galileo.0g.ai/address/0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E) |
+| **Verifier (Groth16)** | `0xd08A4C7E03269f57bCB9fd9ED2E2eE220371Fa02` | [View ↗](https://chainscan-galileo.0g.ai/address/0xd08A4C7E03269f57bCB9fd9ED2E2eE220371Fa02) |
+| **MockZKVerifier** | `0xb6Cd0F6097685A8AE90Ce0E5a393CA2D61C430dA` | [View ↗](https://chainscan-galileo.0g.ai/address/0xb6Cd0F6097685A8AE90Ce0E5a393CA2D61C430dA) |
 
 ### 0G Mainnet (Chain ID `16661`)
 
@@ -132,9 +168,9 @@ Today's AI agents are powerful but **custodial**. Their keys are held by platfor
 
 | Contract | Address | Explorer |
 |---|---|---|
-| **AgentRegistry** | _Deployment pending — fund deployer wallet_ | — |
-| **Verifier (Groth16)** | _Deployment pending — fund deployer wallet_ | — |
-| **MockZKVerifier** | _Deployment pending — fund deployer wallet_ | — |
+| **AgentRegistry** | `0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d` | [View ↗](https://chainscan.0g.ai/address/0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d) |
+| **Verifier (Groth16)** | `0x5dB9f58162feE7d957DF9E2f9112b4BF5D2a20d3` | [View ↗](https://chainscan.0g.ai/address/0x5dB9f58162feE7d957DF9E2f9112b4BF5D2a20d3) |
+| **MockZKVerifier** | `0x4c6d84d9F5A90a013bf9335b9922252b2413C7eD` | [View ↗](https://chainscan.0g.ai/address/0x4c6d84d9F5A90a013bf9335b9922252b2413C7eD) |
 
 **Deploy to Mainnet:**
 ```bash

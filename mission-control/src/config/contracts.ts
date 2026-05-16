@@ -1,11 +1,11 @@
 /**
- * AgentRegistry contract ABI and deployment address.
- * Used by Mission Control to read/write agents on-chain.
- *
- * UPDATE the address after deploying: npm run deploy:testnet (in contracts/)
+ * AgentRegistry contract addresses.
  */
+export const AGENT_REGISTRY_ADDRESS_TESTNET = "0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E" as `0x${string}`;
+export const AGENT_REGISTRY_ADDRESS_MAINNET = "0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d" as `0x${string}`;
 
-export const AGENT_REGISTRY_ADDRESS = "0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E" as `0x${string}`;
+// Default to Mainnet for production
+export const AGENT_REGISTRY_ADDRESS = AGENT_REGISTRY_ADDRESS_MAINNET;
 
 export const AGENT_REGISTRY_ABI = [
   // ── Read Functions ────────────────────────────────────────

@@ -1,4 +1,16 @@
 
+# Enclave Keys (EK) Deployment & Spawn Logs
+
+## 🚀 Milestone: Mainnet Deployment
+- **Date**: 2026-05-16
+- **Network**: 0G Mainnet (Aristotle)
+- **Status**: SUCCESS
+- **Registry Address**: `0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d`
+- **Verifier Address**: `0x5dB9f58162feE7d957DF9E2f9112b4BF5D2a20d3`
+- **Notes**: Contracts successfully migrated and verified. Fleet ready for production.
+
+---
+
 ### 🟢 Spawn Run: 2026-05-01T22:54:48.513Z
 - **Agent Name**: Bot-325
 - **Agent ID**: 1

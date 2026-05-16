@@ -18,8 +18,8 @@ cd mission-control && npm install && cd ..
 ### 2. Environment Configuration
 Create a `.env` file in `ai-orchestrator/`:
 ```env
-PRIVATE_KEY=0x... # Your Galileo Wallet Key
-RPC_ENDPOINT=https://evmrpc-testnet.0g.ai/
+PRIVATE_KEY=0x... # Your Wallet Key
+RPC_ENDPOINT=https://evmrpc-testnet.0g.ai/ # Or https://evmrpc.0g.ai for Mainnet
 INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
 ```
 
@@ -56,11 +56,27 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
+## 🌎 Track C: Going Live (Mainnet)
+*Steps to switch from Testnet to Mainnet.*
+
+### 1. Update Orchestrator Environment
+Edit `ai-orchestrator/.env`:
+```env
+RPC_ENDPOINT=https://evmrpc.0g.ai
+STORAGE_NODE_URL=https://storage-rpc.0g.ai
+INDEXER_URL=https://indexer-storage.0g.ai
+```
+
+### 2. Update Frontend Config
+The dashboard automatically detects the network if you add the Mainnet definition to `mission-control/src/config/chain.ts`.
+
+---
+
 ## 🛠️ Troubleshooting
 
 ### "ZK Proof is invalid"
 This happens if your `ai-orchestrator` artifacts don't match the on-chain `Verifier`. 
 **Fix:** If you change your circuit, you must re-run **Track A (Steps 3 & 4)**.
 
-### 0G Testnet RPC Lag
-If the dashboard says "Syncing" for a long time, the 0G Testnet nodes might be under high load. Simply wait or click the "Refresh" button in the "Active Fleet" section.
+### 0G RPC Lag
+If the dashboard says "Syncing" for a long time, the nodes might be under high load. Simply wait or click the "Refresh" button in the "Active Fleet" section.

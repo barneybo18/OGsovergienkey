@@ -17,7 +17,7 @@ Our architecture is divided into 4 primary layers:
 ### 3. The Trustless Privacy Engine (ZK Proving Layer)
 *   **Stack:** Circom 2.0 + snarkjs (Groth16).
 *   **Functionality:** When the AI formulates an intent, it passes this intent and its "Constitution" (risk rules) to the ZK Prover. The prover generates a SNARK verifying that the intent adheres to the rules (e.g., spending limits and whitelisted addresses) without revealing the underlying proprietary data.
-*   **On-Chain Verification:** Unlike previous SP1 implementations, this architecture produces compact proofs that are verified on-chain by a native Solidity `Verifier.sol` contract on 0G Galileo.
+*   **On-Chain Verification:** Unlike previous SP1 implementations, this architecture produces compact proofs that are verified on-chain by a native Solidity `Verifier.sol` contract on the 0G Network (Galileo or Aristotle/Mainnet).
 
 ### 4. Decentralized Custody & Settlement (0G Labs & MPC)
 *   **Stack:** 0G Chain (EVM), 0G Storage, 0G Data Availability (DA).

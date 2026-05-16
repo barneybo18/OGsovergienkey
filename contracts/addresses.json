@@ -1,5 +1,15 @@
 {
-  "Verifier": "0xd08A4C7E03269f57bCB9fd9ED2E2eE220371Fa02",
-  "MockZKVerifier": "0xb6Cd0F6097685A8AE90Ce0E5a393CA2D61C430dA",
-  "AgentRegistry": "0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E"
+  "testnet": {
+    "Verifier": "0xd08A4C7E03269f57bCB9fd9ED2E2eE220371Fa02",
+    "MockZKVerifier": "0xb6Cd0F6097685A8AE90Ce0E5a393CA2D61C430dA",
+    "AgentRegistry": "0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E"
+  },
+  "mainnet": {
+    "Verifier": "0x5dB9f58162feE7d957DF9E2f9112b4BF5D2a20d3",
+    "MockZKVerifier": "0x4c6d84d9F5A90a013bf9335b9922252b2413C7eD",
+    "AgentRegistry": "0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d"
+  },
+  "Verifier": "0x5dB9f58162feE7d957DF9E2f9112b4BF5D2a20d3",
+  "MockZKVerifier": "0x4c6d84d9F5A90a013bf9335b9922252b2413C7eD",
+  "AgentRegistry": "0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d"
 }
