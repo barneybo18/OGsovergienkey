@@ -18,20 +18,32 @@ export class ZeroGService {
     private indexer: Indexer;
     private rpcEndpoint: string;
 
-    constructor() {
+    constructor(network: string = "mainnet") {
         const usePrivateKey = process.env.USE_PRIVATE_KEY_FOR_TESTING === "true";
         if (usePrivateKey && !process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY is not set in .env");
-        if (!process.env.RPC_ENDPOINT) throw new Error("RPC_ENDPOINT is not set in .env");
 
-        this.rpcEndpoint = process.env.RPC_ENDPOINT;
-        const indexerUrl = process.env.INDEXER_URL || "https://indexer-storage-testnet-turbo.0g.ai";
+        // Dynamic RPC & Indexer Selection
+        this.rpcEndpoint = process.env.RPC_ENDPOINT || "";
+        if (network === "testnet" && process.env.TESTNET_RPC_ENDPOINT) {
+            this.rpcEndpoint = process.env.TESTNET_RPC_ENDPOINT;
+        } else if (network === "mainnet" && process.env.MAINNET_RPC_ENDPOINT) {
+            this.rpcEndpoint = process.env.MAINNET_RPC_ENDPOINT;
+        }
+
+        let indexerUrl = process.env.INDEXER_URL || "https://indexer-storage-testnet-turbo.0g.ai";
+        if (network === "testnet" && process.env.TESTNET_INDEXER_URL) {
+            indexerUrl = process.env.TESTNET_INDEXER_URL;
+        } else if (network === "mainnet" && process.env.MAINNET_INDEXER_URL) {
+            indexerUrl = process.env.MAINNET_INDEXER_URL;
+        }
+
         const privateKey = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
 
         this.provider = new ethers.JsonRpcProvider(this.rpcEndpoint);
         this.wallet = new ethers.Wallet(privateKey, this.provider);
         this.indexer = new Indexer(indexerUrl);
 
-        console.log(`[0G-Service] Initialized with RPC: ${this.rpcEndpoint}, Indexer: ${indexerUrl}`);
+        console.log(`[0G-Service] Initialized for ${network} with Indexer: ${indexerUrl}`);
     }
 
     /**
@@ -124,8 +136,6 @@ export class ZeroGService {
             type: "MPC_SHARD",
             _meta: {
                 version: "1.0",
-                network: "0G-Galileo-Testnet",
-                chainId: 16602,
                 timestamp: Date.now(),
                 agent: "SovereignAgent",
                 _pad: "0".repeat(512),
@@ -154,8 +164,6 @@ export class ZeroGService {
             type: "AI_INTENT_LOG",
             _meta: {
                 version: "1.0",
-                network: "0G-Galileo-Testnet",
-                chainId: 16602,
                 timestamp: Date.now(),
                 _pad: "0".repeat(512),
             }

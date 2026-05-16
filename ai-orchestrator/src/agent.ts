@@ -24,15 +24,26 @@ export class SovereignAgent {
     private registry: ethers.Contract;
 
     constructor() {
+        const networkFlag = process.argv.find(arg => arg.startsWith("--network="))?.split("=")[1] || "mainnet";
         const usePrivateKey = process.env.USE_PRIVATE_KEY_FOR_TESTING === "true";
+        
         if (usePrivateKey && !process.env.PRIVATE_KEY) throw new Error("PRIVATE_KEY is not set in .env");
-        if (!process.env.RPC_ENDPOINT) throw new Error("RPC_ENDPOINT is not set in .env");
 
-        this.zeroG = new ZeroGService();
-        const provider = new ethers.JsonRpcProvider(process.env.RPC_ENDPOINT);
-        const privateKey = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001"; // Dummy key for prepare mode
+        // Dynamic RPC Selection
+        let rpc = process.env.RPC_ENDPOINT;
+        if (networkFlag === "testnet" && process.env.TESTNET_RPC_ENDPOINT) {
+            rpc = process.env.TESTNET_RPC_ENDPOINT;
+        } else if (networkFlag === "mainnet" && process.env.MAINNET_RPC_ENDPOINT) {
+            rpc = process.env.MAINNET_RPC_ENDPOINT;
+        }
+
+        if (!rpc) throw new Error(`RPC_ENDPOINT for ${networkFlag} is not set in .env`);
+
+        this.zeroG = new ZeroGService(networkFlag);
+        const provider = new ethers.JsonRpcProvider(rpc);
+        const privateKey = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
         this.wallet = new ethers.Wallet(privateKey, provider);
-        this.registry = new ethers.Contract(ADDRESSES.AgentRegistry, REGISTRY_ABI, provider); // Attach to provider to allow encoding
+        this.registry = new ethers.Contract(ADDRESSES.AgentRegistry, REGISTRY_ABI, provider);
     }
 
     /**
