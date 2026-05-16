@@ -219,7 +219,7 @@ export default function MissionControl() {
         // My Fleet = only agents owned by connected wallet
         const mine = connectedAddress
           ? data.agents.filter((a: Agent) => a.owner?.toLowerCase() === connectedAddress.toLowerCase())
-          : data.agents;
+          : [];
         setAgents(mine);
       } else {
         console.warn("Failed to refresh active fleet:", data.message);
@@ -249,7 +249,7 @@ export default function MissionControl() {
     fetchAgents(resolvedChainId);
     const interval = setInterval(() => fetchNetworkStatus(resolvedChainId), 10000);
     return () => clearInterval(interval);
-  }, [resolvedChainId, isMounted]);
+  }, [resolvedChainId, isMounted, connectedAddress]);
 
   const handleSpawn = async (name: string) => {
     const finalName = name.trim() || `SAK-Agent-${Math.floor(Math.random() * 10000)}`;
