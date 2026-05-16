@@ -27,12 +27,11 @@ export async function GET(request: Request) {
 
     const provider = new ethers.JsonRpcProvider(networkConf.rpc);
 
-    const addressesPath = path.resolve(process.cwd(), "..", "contracts", "addresses.json");
-    const allAddresses = JSON.parse(fs.readFileSync(addressesPath, "utf8"));
-    // Strictly use only the network-specific key — no cross-network fallback
-    const addresses = allAddresses[networkConf.key] ?? {};
+    const contractsPath = path.resolve(process.cwd(), "src", "config", "contracts.json");
+    const contracts = JSON.parse(fs.readFileSync(contractsPath, "utf8"));
+    const networkAddresses = contracts.addresses[networkConf.key] ?? {};
 
-    if (!addresses.AgentRegistry) {
+    if (!networkAddresses.AgentRegistry) {
       return NextResponse.json({
         success: true,
         network: { totalAgents: 0, rpcStatus: "No Contract Deployed", indexerUrl: networkConf.indexerUrl },
@@ -40,11 +39,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const registryArtifactPath = path.resolve(
-      process.cwd(), "..", "contracts", "artifacts", "contracts", "AgentRegistry.sol", "AgentRegistry.json"
-    );
-    const registryAbi = JSON.parse(fs.readFileSync(registryArtifactPath, "utf8")).abi;
-    const registry = new ethers.Contract(addresses.AgentRegistry, registryAbi, provider);
+    const registry = new ethers.Contract(networkAddresses.AgentRegistry, contracts.abi, provider);
 
     const nextAgentId = await registry.nextAgentId().catch(() => 0n);
 

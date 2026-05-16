@@ -1,0 +1,85 @@
+{
+  "addresses": {
+    "testnet": {
+      "Verifier": "0xd08A4C7E03269f57bCB9fd9ED2E2eE220371Fa02",
+      "MockZKVerifier": "0xb6Cd0F6097685A8AE90Ce0E5a393CA2D61C430dA",
+      "AgentRegistry": "0x4A7DB2107b10D7694555da9C4d31FA9f7d3Feb1E"
+    },
+    "mainnet": {
+      "Verifier": "0x5dB9f58162feE7d957DF9E2f9112b4BF5D2a20d3",
+      "MockZKVerifier": "0x4c6d84d9F5A90a013bf9335b9922252b2413C7eD",
+      "AgentRegistry": "0x93b0650f33C86dDab1c8b6B3f0fAD768e7d3680d"
+    }
+  },
+  "abi": [
+    {
+      "inputs": [{ "internalType": "address", "name": "_verifierAddress", "type": "address" }],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": true, "internalType": "uint256", "name": "agentId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "owner", "type": "address" }, { "indexed": false, "internalType": "bytes32", "name": "pubKeyHash", "type": "bytes32" }, { "indexed": false, "internalType": "bytes32", "name": "constitutionHash", "type": "bytes32" }],
+      "name": "AgentRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": true, "internalType": "uint256", "name": "agentId", "type": "uint256" }, { "indexed": false, "internalType": "string", "name": "intentDataId", "type": "string" }],
+      "name": "IntentLogged",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": true, "internalType": "uint256", "name": "agentId", "type": "uint256" }, { "indexed": false, "internalType": "uint256", "name": "taskId", "type": "uint256" }, { "indexed": false, "internalType": "string", "name": "instruction", "type": "string" }],
+      "name": "TaskExecuted",
+      "type": "event"
+    },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "agentId", "type": "uint256" }, { "internalType": "string", "name": "instruction", "type": "string" }, { "internalType": "string", "name": "result", "type": "string" }, { "internalType": "bytes", "name": "proof", "type": "bytes" }],
+      "name": "executeTask",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "agentId", "type": "uint256" }],
+      "name": "getAgentTasks",
+      "outputs": [{
+        "components": [
+          { "internalType": "uint256", "name": "id", "type": "uint256" },
+          { "internalType": "string", "name": "instruction", "type": "string" },
+          { "internalType": "string", "name": "result", "type": "string" },
+          { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+          { "internalType": "bool", "name": "completed", "type": "bool" }
+        ],
+        "internalType": "struct AgentRegistry.Task[]",
+        "name": "",
+        "type": "tuple[]"
+      }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "agentId", "type": "uint256" }, { "internalType": "string", "name": "intentDataId", "type": "string" }, { "internalType": "uint256[2]", "name": "pA", "type": "uint256[2]" }, { "internalType": "uint256[2][2]", "name": "pB", "type": "uint256[2][2]" }, { "internalType": "uint256[2]", "name": "pC", "type": "uint256[2]" }, { "internalType": "uint256[3]", "name": "pubSignals", "type": "uint256[3]" }],
+      "name": "logIntent",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "nextAgentId",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "bytes32", "name": "pubKey", "type": "bytes32" }, { "internalType": "bytes32", "name": "constitutionHash", "type": "bytes32" }],
+      "name": "registerAgent",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ]
+}
