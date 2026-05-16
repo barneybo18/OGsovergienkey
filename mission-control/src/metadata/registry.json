@@ -39,11 +39,15 @@
       },
       "0xa761a719b3240ce5078c077fb62eaea1351b1010390e15d2f7717723cad39d32": {
         "name": "banny-agent-2"
+      },
+      "0x6d1586d4ee0e2f3545ca44e8825aa385b5eacb205effd4bf28eff5208a380dfe": {
+        "name": "My-rent-agent"
       }
     },
     "provingHistory": [
       5.7,
-      8
+      8,
+      7.6
     ]
   }
 }
