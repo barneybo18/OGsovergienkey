@@ -168,7 +168,6 @@ export class SovereignAgent {
         const { pA, pB, pC, pubSignals } = await generateProof(
             amount, 
             targetAddress,
-            1, // assetId
             1000, 
             targetAddress
         );
@@ -217,7 +216,7 @@ export class SovereignAgent {
 
         // 3. Encode proof as bytes for the contract
         const proof = ethers.AbiCoder.defaultAbiCoder().encode(
-            ["uint[2]", "uint[2][2]", "uint[2]", "uint[4]"],
+            ["uint[2]", "uint[2][2]", "uint[2]", "uint[3]"],
             [pA, pB, pC, pubSignals]
         );
 
@@ -304,6 +303,7 @@ async function run() {
         }
 
         if (!isSpawnOnly) {
+            const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
             await agent.executeIntent(agentId, 800, target);
         }
 

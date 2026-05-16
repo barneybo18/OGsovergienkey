@@ -150,7 +150,7 @@ component main = Constitution();`;
                       <Network size={12} className="text-brand-purple" /> Genesis Proof
                     </p>
                     <a 
-                      href={`https://scan-testnet.0g.ai/tx/${agent.txHash}`}
+                      href={`https://chainscan-galileo.0g.ai/tx/${agent.txHash}`}
                       target="_blank"
                       className="text-[10px] text-white/30 font-mono break-all block leading-relaxed hover:text-brand-cyan transition-colors"
                     >
