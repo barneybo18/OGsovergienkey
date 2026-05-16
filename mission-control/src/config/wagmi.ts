@@ -1,19 +1,20 @@
 "use client";
 
 import { http, createConfig } from "wagmi";
-import { ogGalileoTestnet } from "./chain";
+import { ogGalileoTestnet, ogMainnet } from "./chain";
 import { injected } from "wagmi/connectors";
 
 /**
  * Wagmi configuration for Sovereign Agent Keys.
- * Connects to the 0G Galileo Testnet using browser-injected wallets (MetaMask, etc.)
+ * Connects to 0G Mainnet and Galileo Testnet.
  */
 export const wagmiConfig = createConfig({
-  chains: [ogGalileoTestnet],
+  chains: [ogMainnet, ogGalileoTestnet],
   connectors: [
     injected(), // MetaMask, Rabby, etc.
   ],
   transports: {
+    [ogMainnet.id]: http(),
     [ogGalileoTestnet.id]: http(),
   },
 });

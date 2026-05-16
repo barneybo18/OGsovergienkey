@@ -1,21 +1,25 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "@/components/Providers";
-import { ConnectWallet } from "@/components/ConnectWallet";
 import { Toaster } from "sonner";
+import { headers } from "next/headers";
+import { cookieToInitialState } from "wagmi";
+import { Web3Provider, wagmiConfig } from "@/components/Web3Provider";
 
 export const metadata: Metadata = {
-  title: "Sovereign Agent Keys | Mission Control",
-  description: "0G Labs Hackathon Mission Control",
+  title: "Enclave Keys | 0G Dashboard",
+  description: "0G Labs Hackathon Sovereign Agent Infrastructure",
 };
 
-import { Web3Provider } from "@/components/Web3Provider";
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the wallet connection cookie on the server so the client can hydrate
+  // with the correct connected state immediately — no flash of "disconnected" on refresh.
+  const cookie = (await headers()).get("cookie");
+  const initialState = cookieToInitialState(wagmiConfig, cookie);
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -24,10 +28,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased selection:bg-brand-purple/30">
-        <Web3Provider>
-          <div className="absolute top-6 right-8 z-50">
-            {/* Dave's ConnectWallet can go here if needed, but we have ConnectButtonCustom in page.tsx */}
-          </div>
+        <Web3Provider initialState={initialState}>
           {children}
           <Toaster theme="dark" position="bottom-right" richColors />
         </Web3Provider>

@@ -27,6 +27,13 @@ const config: HardhatUserConfig = {
       gasPrice: 5000000000,
       maxPriorityFeePerGas: 5000000000
     },
+    "0g-mainnet": {
+      url: "https://evmrpc.0g.ai",
+      chainId: 16661,
+      accounts: [PRIVATE_KEY],
+      gasPrice: 5000000000,
+      maxPriorityFeePerGas: 5000000000
+    },
     hardhat: {
       chainId: 1337
     }

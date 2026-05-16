@@ -13,7 +13,7 @@ contract MockZKVerifier is IZKVerifier {
         uint[2] memory /*pA*/,
         uint[2][2] memory /*pB*/,
         uint[2] memory /*pC*/,
-        uint[4] memory /*pubSignals*/
+        uint[3] memory /*pubSignals*/
     ) external pure override returns (bool) {
         return true;
     }

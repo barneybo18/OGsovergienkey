@@ -5,12 +5,12 @@ import { AgentDetailModal } from "@/components/AgentDetailModal";
 import { TerminalLog } from "@/components/TerminalLog";
 import { StatsCard } from "@/components/StatsCard";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Sparkles, Activity, Loader2, Wallet, Cpu, Network, RotateCw, PlusCircle } from "lucide-react";
+import { Shield, Activity, Loader2, Wallet, Cpu, Network, RotateCw, PlusCircle, Globe, Users } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { useAccount, useBalance, useSendTransaction, useConfig } from "wagmi";
+import { useAccount, useBalance, useSendTransaction, useConfig, useChainId } from "wagmi";
 import { formatEther } from "viem";
 import { waitForTransactionReceipt } from "wagmi/actions";
 
@@ -32,7 +32,14 @@ interface Agent {
   owner?: string;
   zkStatus: "Verified" | "Pending" | "Failed";
   txHash?: string;
+  chainId?: number;
+  explorerUrl?: string;
 }
+
+const CHAIN_META: Record<number, { name: string; explorer: string; badge: string }> = {
+  16602: { name: "0G Galileo Testnet", explorer: "https://chainscan-galileo.0g.ai", badge: "text-brand-cyan border-brand-cyan/50 bg-brand-cyan/10" },
+  16661: { name: "0G Mainnet", explorer: "https://chainscan.0g.ai", badge: "text-green-400 border-green-400/50 bg-green-400/10" },
+};
 
 interface NetworkStatus {
   success: boolean;
@@ -58,10 +65,25 @@ import { ConnectButtonCustom } from "@/components/ConnectButton";
 export default function MissionControl() {
   const { address: connectedAddress, isConnected } = useAccount();
   const config = useConfig();
-  const { data: balanceData } = useBalance({
-    address: connectedAddress,
-  });
+  const chainId = useChainId();
+
+  // isMounted must be declared BEFORE resolvedChainId which depends on it
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Wait for client-side hydration before reading wagmi state
+  useEffect(() => { setIsMounted(true); }, []);
+
+  // Only trust the wallet's chainId when a wallet is actually connected.
+  // Without this guard, Wagmi returns the default chain before wallet connects,
+  // which can cause the wrong network data to load briefly.
+  const resolvedChainId = isMounted && isConnected ? (chainId ?? 16602) : 16602;
+
+  const { data: balanceData } = useBalance({ address: connectedAddress });
   const { sendTransactionAsync } = useSendTransaction();
+  const [activeTab, setActiveTab] = useState<"my-fleet" | "global">("my-fleet");
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [globalPage, setGlobalPage] = useState(1);
+  const GLOBAL_PER_PAGE = 10;
 
   const [isSpawning, setIsSpawning] = useState(false);
   const [isNamingModalOpen, setIsNamingModalOpen] = useState(false);
@@ -70,10 +92,6 @@ export default function MissionControl() {
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [runtimeLogs, setRuntimeLogs] = useState<string[]>([]);
-  const [isMounted, setIsMounted] = useState(false);
-
-  // Wait for client-side hydration before reading wagmi state
-  useEffect(() => { setIsMounted(true); }, []);
 
   const vantaRef = useRef<HTMLDivElement>(null);
   const vantaEffect = useRef<any>(null);
@@ -152,12 +170,12 @@ export default function MissionControl() {
     initVanta();
 
     if (lowPowerMode) {
-        if (vantaEffect.current) {
-            vantaEffect.current.destroy();
-            vantaEffect.current = null;
-        }
+      if (vantaEffect.current) {
+        vantaEffect.current.destroy();
+        vantaEffect.current = null;
+      }
     } else {
-        initVanta();
+      initVanta();
     }
 
     return () => {
@@ -190,14 +208,19 @@ export default function MissionControl() {
     return () => clearInterval(interval);
   }, [isSpawning]);
 
-  const fetchAgents = async () => {
+  const fetchAgents = async (cid?: number) => {
+    const id = cid ?? resolvedChainId;
     setIsLoadingAgents(true);
     try {
-      const res = await fetch("/api/get-agents");
+      const res = await fetch(`/api/get-agents?chainId=${id}`);
       const data = await res.json();
-      if (data.duration) setLastProvingTime(`${data.duration}s`);
       if (data.success) {
-        setAgents(data.agents);
+        setAllAgents(data.agents);
+        // My Fleet = only agents owned by connected wallet
+        const mine = connectedAddress
+          ? data.agents.filter((a: Agent) => a.owner?.toLowerCase() === connectedAddress.toLowerCase())
+          : data.agents;
+        setAgents(mine);
       } else {
         console.warn("Failed to refresh active fleet:", data.message);
       }
@@ -208,9 +231,10 @@ export default function MissionControl() {
     }
   };
 
-  const fetchNetworkStatus = async () => {
+  const fetchNetworkStatus = async (cid?: number) => {
+    const id = cid ?? resolvedChainId;
     try {
-      const res = await fetch("/api/network-status");
+      const res = await fetch(`/api/network-status?chainId=${id}`);
       const data = await res.json() as NetworkStatus;
       if (data.success) setNetworkData(data);
     } catch (e) {
@@ -218,18 +242,20 @@ export default function MissionControl() {
     }
   };
 
+  // Re-fetch whenever the resolved network changes
   useEffect(() => {
-    fetchNetworkStatus();
-    fetchAgents();
-    const interval = setInterval(fetchNetworkStatus, 10000); // 10s refresh
+    if (!isMounted) return;
+    fetchNetworkStatus(resolvedChainId);
+    fetchAgents(resolvedChainId);
+    const interval = setInterval(() => fetchNetworkStatus(resolvedChainId), 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [resolvedChainId, isMounted]);
 
   const handleSpawn = async (name: string) => {
     const finalName = name.trim() || `SAK-Agent-${Math.floor(Math.random() * 10000)}`;
     setSpawnError(null);
     setIsSpawning(true);
-    setRuntimeLogs(["[SAK] Initializing Agent Genesis Sequence...", `[SAK] Identity: ${finalName}`, "[SAK] Contacting 0G Galileo Testnet..."]);
+    setRuntimeLogs(["[SAK] Initializing Agent Genesis Sequence...", `[SAK] Identity: ${finalName}`, `[SAK] Contacting ${CHAIN_META[chainId ?? 16602]?.name ?? "0G Network"}...`]);
     toast.info(`ZK Genesis for ${finalName} dispatched!`);
 
     try {
@@ -248,23 +274,24 @@ export default function MissionControl() {
         "[0G] Preparing Shard Merkle Tree... 82%",
         "[0G] Finalizing Shard Encoding... 95%"
       ];
-      
+
       let stepIdx = 0;
       const progressInterval = setInterval(() => {
         if (stepIdx < progressSteps.length) {
-            setRuntimeLogs(prev => [...prev, progressSteps[stepIdx]]);
-            stepIdx++;
+          setRuntimeLogs(prev => [...prev, progressSteps[stepIdx]]);
+          stepIdx++;
         } else {
-            clearInterval(progressInterval);
+          clearInterval(progressInterval);
         }
       }, 4000);
 
       const res = await fetch("/api/prepare-spawn-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            name: finalName, 
-            address: connectedAddress 
+        body: JSON.stringify({
+          name: finalName,
+          address: connectedAddress,
+          chainId: resolvedChainId,
         })
       });
 
@@ -281,8 +308,8 @@ export default function MissionControl() {
         return;
       }
 
-      setRuntimeLogs(prev => [...prev, 
-        `[SAK] Agent payload generated: ${data.name}`,
+      setRuntimeLogs(prev => [...prev,
+      `[SAK] Agent payload generated: ${data.name}`,
         `[ZK] Groth16 Proof ready.`,
         `[SIGNING] Please confirm the transaction in your wallet to settle on 0G Galileo...`
       ]);
@@ -290,13 +317,13 @@ export default function MissionControl() {
 
       // Send the transaction using the connected wallet!
       const txHash = await sendTransactionAsync({
-          to: data.txPayload.to as `0x${string}`,
-          data: data.txPayload.data as `0x${string}`,
-          value: data.txPayload.value ? BigInt(data.txPayload.value) : BigInt(0)
+        to: data.txPayload.to as `0x${string}`,
+        data: data.txPayload.data as `0x${string}`,
+        value: data.txPayload.value ? BigInt(data.txPayload.value) : BigInt(0)
       });
 
       setRuntimeLogs(prev => [...prev,
-        `[TX] Transaction broadcasted: ${txHash}`,
+      `[TX] Transaction broadcasted: ${txHash}`,
         "[0G] Waiting for on-chain confirmation (Aggressive Polling)...",
       ]);
 
@@ -307,7 +334,7 @@ export default function MissionControl() {
       });
 
       setRuntimeLogs(prev => [...prev, `[0G] Settlement confirmed in block ${receipt.blockNumber}.`]);
-      
+
       // Immediately refresh the fleet and network status
       await fetchAgents();
       await fetchNetworkStatus();
@@ -319,7 +346,8 @@ export default function MissionControl() {
         `🔗 TX: ${txHash}`,
         "✅ E2E ZK Genesis Cycle Finalized.",
       ]);
-      toast.success(`Agent is live on 0G Galileo!`);
+      const netName = CHAIN_META[resolvedChainId]?.name ?? "0G Chain";
+      toast.success(`Agent is live on ${netName}!`);
 
     } catch (error: any) {
       console.error("Spawn failed:", error);
@@ -349,42 +377,46 @@ export default function MissionControl() {
       <div className="absolute inset-0 z-0 opacity-[0.02] pointer-events-none"
         style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '200px 200px' }} />
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      {/* Floating Top Navigation (Desktop & Mobile) */}
+      <div className="fixed top-6 right-6 z-[100] flex items-center gap-3">
+        <button
+          onClick={toggleLowPower}
+          className={cn(
+            "p-3 lg:px-4 lg:py-3.5 rounded-xl flex items-center gap-2 transition-all border text-[10px] font-bold uppercase tracking-widest backdrop-blur-md shadow-lg",
+            lowPowerMode
+              ? "bg-brand-purple/20 border-brand-purple/40 text-brand-purple"
+              : "bg-black/40 border-white/10 text-white/40 hover:text-white"
+          )}
+          title={lowPowerMode ? "Enable High Performance UI (WebGL)" : "Disable GPU-Heavy Background"}
+        >
+          <Cpu size={14} className={lowPowerMode ? "" : "animate-pulse"} />
+          <span className="hidden lg:inline">{lowPowerMode ? "Low Power: ON" : "Low Power: OFF"}</span>
+        </button>
+        <ConnectButtonCustom />
+      </div>
+
+      <div className="max-w-7xl mx-auto relative z-10 px-4 sm:px-6 lg:px-8">
 
         {/* Header Area */}
-        <header className="mb-16 flex flex-col md:flex-row items-start md:items-end justify-between gap-6">
-          <div>
+        <header className="mb-12 pt-8 lg:pt-0 lg:mb-16 flex flex-col items-start gap-6">
+          <div className="w-full">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-cyan/50 bg-brand-cyan/10 text-brand-cyan text-[10px] font-bold uppercase tracking-widest mb-4"
+              className={cn("inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-widest mb-4", isMounted ? (CHAIN_META[resolvedChainId]?.badge ?? "text-brand-cyan border-brand-cyan/50 bg-brand-cyan/10") : "text-brand-cyan border-brand-cyan/50 bg-brand-cyan/10")}
             >
-              <Activity className="w-3 h-3" /> Network: 0G Galileo Testnet
+              <Activity className="w-3 h-3" /> {isMounted ? (CHAIN_META[resolvedChainId]?.name ?? "0G Network") : "0G Galileo Testnet"}
             </motion.div>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-4 text-white font-display">
-              Mission <span className="text-gradient">Control</span>
+              Enclave <span className="text-gradient">Keys</span>
             </h1>
             <p className="text-base text-white/50 max-w-2xl font-light leading-relaxed">
-              Decentralized AI Governance. Securely spawn agents, verify cryptographic constitutions via ZK-SNARKs, and manage high-integrity intent memory on the 0G DA layer.
+              Decentralized Enclave Governance. Securely spawn agents, verify cryptographic constitutions via ZK-SNARKs, and manage high-integrity intent memory on the 0G DA layer.
             </p>
           </div>
-          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-            <button
-                onClick={toggleLowPower}
-                className={cn(
-                    "px-4 py-4 rounded-xl flex items-center gap-2 transition-all border text-[10px] font-bold uppercase tracking-widest",
-                    lowPowerMode 
-                        ? "bg-brand-purple/20 border-brand-purple/40 text-brand-purple" 
-                        : "bg-white/5 border-white/10 text-white/40 hover:text-white"
-                )}
-                title={lowPowerMode ? "Enable High Performance UI (WebGL)" : "Disable GPU-Heavy Background"}
-            >
-                <Cpu size={14} className={lowPowerMode ? "" : "animate-pulse"} />
-                {lowPowerMode ? "Low Power: ON" : "Low Power: OFF"}
-            </button>
-            <ConnectButtonCustom />
+          <div className="w-full flex justify-start">
             <motion.button
-              whileHover={isSpawning ? {} : { 
+              whileHover={isSpawning ? {} : {
                 scale: 1.05,
                 boxShadow: "0 0 25px rgba(0, 255, 209, 0.4), 0 0 60px rgba(0, 255, 209, 0.15)",
                 borderColor: "rgba(0, 255, 209, 0.5)",
@@ -393,9 +425,9 @@ export default function MissionControl() {
               onClick={() => !isSpawning && setIsNamingModalOpen(true)}
               transition={{ type: "spring", stiffness: 400, damping: 20 }}
               className={cn(
-                "px-8 py-4 rounded-xl flex items-center gap-3 transition-all font-bold text-sm uppercase tracking-[0.2em] border border-white/10",
-                isSpawning 
-                  ? "bg-white/10 text-white/40 cursor-not-allowed" 
+                "w-full sm:w-auto px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all font-bold text-sm uppercase tracking-[0.2em] border border-white/10 shadow-lg",
+                isSpawning
+                  ? "bg-white/10 text-white/40 cursor-not-allowed"
                   : "bg-brand-cyan text-black hover:bg-brand-cyan/90"
               )}
             >
@@ -415,7 +447,7 @@ export default function MissionControl() {
         </header>
 
         {spawnError && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="mb-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-center gap-3"
@@ -454,82 +486,135 @@ export default function MissionControl() {
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Active Agents Column */}
+          {/* Tabbed Agents Column */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold flex items-center gap-2 border-b border-white/10 pb-2 flex-1 text-white/90 uppercase tracking-wider text-xs font-bold opacity-60 font-display">
-                <Shield className="w-5 h-5 text-white/50" /> Active Fleet
-              </h2>
+            {/* Tab Headers */}
+            <div className="flex items-center gap-4 border-b border-white/10 pb-0">
               <button
-                onClick={fetchAgents}
-                disabled={isLoadingAgents}
-                className="ml-4 p-2 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all disabled:opacity-20"
-                title="Refresh from Blockchain"
-              >
-                <RotateCw className={`w-4 h-4 ${isLoadingAgents ? "animate-spin" : ""}`} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <AnimatePresence mode="popLayout">
-                {isLoadingAgents ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="glass-panel h-[180px] animate-pulse rounded-3xl bg-white/5" />
-                  ))
-                ) : (
-                  currentAgents.map((agent) => (
-                    <AgentCard
-                      key={agent.id}
-                      name={agent.name}
-                      id={agent.id}
-                      rootHash={agent.rootHash}
-                      pubKeyHash={agent.pubKeyHash}
-                      owner={agent.owner}
-                      zkStatus={agent.zkStatus}
-                      txHash={agent.txHash}
-                      onClick={() => setSelectedAgent(agent)}
-                    />
-                  ))
+                onClick={() => setActiveTab("my-fleet")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 -mb-px",
+                  activeTab === "my-fleet"
+                    ? "border-brand-cyan text-brand-cyan"
+                    : "border-transparent text-white/40 hover:text-white"
                 )}
-              </AnimatePresence>
-            </div>
-
-            {!isLoadingAgents && agents.length > agentsPerPage && (
-              <div className="flex items-center justify-center gap-4 mt-8">
+              >
+                <Shield className="w-3.5 h-3.5" /> My Fleet
+              </button>
+              <button
+                onClick={() => setActiveTab("global")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 -mb-px",
+                  activeTab === "global"
+                    ? "border-brand-purple text-brand-purple"
+                    : "border-transparent text-white/40 hover:text-white"
+                )}
+              >
+                <Globe className="w-3.5 h-3.5" /> Global Pulse
+                <span className="px-1.5 py-0.5 rounded-full bg-white/5 text-white/30 text-[9px]">{allAgents.length}</span>
+              </button>
+              <div className="ml-auto">
                 <button
-                  onClick={() => paginate(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white disabled:opacity-20 transition-all"
+                  onClick={() => { fetchAgents(resolvedChainId); fetchNetworkStatus(resolvedChainId); }}
+                  disabled={isLoadingAgents}
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all disabled:opacity-20"
+                  title="Refresh from Blockchain"
                 >
-                  Previous
-                </button>
-                <div className="flex gap-2">
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => paginate(i + 1)}
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${currentPage === i + 1
-                        ? "bg-brand-purple/20 border-brand-purple text-brand-purple"
-                        : "bg-white/5 border-white/10 text-white/40 hover:text-white"
-                        }`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => paginate(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white disabled:opacity-20 transition-all"
-                >
-                  Next
+                  <RotateCw className={`w-4 h-4 ${isLoadingAgents ? "animate-spin" : ""}`} />
                 </button>
               </div>
+            </div>
+
+            {/* My Fleet Tab */}
+            {activeTab === "my-fleet" && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <AnimatePresence mode="popLayout">
+                    {isLoadingAgents ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="glass-panel h-[180px] animate-pulse rounded-3xl bg-white/5" />
+                      ))
+                    ) : (
+                      agents.slice((currentPage - 1) * agentsPerPage, currentPage * agentsPerPage).map((agent) => (
+                        <AgentCard
+                          key={agent.id}
+                          name={agent.name}
+                          id={agent.id}
+                          rootHash={agent.rootHash}
+                          pubKeyHash={agent.pubKeyHash}
+                          owner={agent.owner}
+                          zkStatus={agent.zkStatus}
+                          txHash={agent.txHash}
+                          onClick={() => setSelectedAgent(agent)}
+                        />
+                      ))
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {!isLoadingAgents && agents.length > agentsPerPage && (
+                  <div className="flex items-center justify-center gap-4 mt-4">
+                    <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white disabled:opacity-20 transition-all">Previous</button>
+                    <span className="text-white/30 text-xs">{currentPage} / {Math.ceil(agents.length / agentsPerPage)}</span>
+                    <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === Math.ceil(agents.length / agentsPerPage)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white disabled:opacity-20 transition-all">Next</button>
+                  </div>
+                )}
+
+                {agents.length === 0 && !isSpawning && !isLoadingAgents && (
+                  <div className="text-white/20 text-center py-20 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.01]">
+                    No agents in your fleet yet. Click &quot;Spawn Agent&quot; to begin.
+                  </div>
+                )}
+              </>
             )}
 
-            {agents.length === 0 && !isSpawning && !isLoadingAgents && (
-              <div className="text-white/20 text-center py-20 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.01]">
-                No active agents in the fleet. Click &quot;Spawn Agent&quot; to begin.
+            {/* Global Pulse Tab — list format */}
+            {activeTab === "global" && (
+              <div className="flex flex-col gap-2">
+                {isLoadingAgents ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-xl bg-white/5 border border-white/5" />
+                  ))
+                ) : allAgents.length === 0 ? (
+                  <div className="text-white/20 text-center py-20 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.01]">
+                    No agents found on this network yet.
+                  </div>
+                ) : (
+                  <>
+                    {allAgents.slice((globalPage - 1) * GLOBAL_PER_PAGE, globalPage * GLOBAL_PER_PAGE).map((agent, idx) => (
+                      <motion.div
+                        key={agent.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        className="flex items-center gap-4 px-5 py-3.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.04] transition-all group"
+                      >
+                        <span className="text-white/20 text-xs font-mono w-6 flex-shrink-0">{(globalPage - 1) * GLOBAL_PER_PAGE + idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{agent.name}</p>
+                          <p className="text-[10px] text-white/30 font-mono truncate">{agent.owner?.slice(0, 10)}...{agent.owner?.slice(-6)}</p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20 flex-shrink-0">Verified</span>
+                        <a
+                          href={agent.explorerUrl ?? `${CHAIN_META[resolvedChainId]?.explorer}/tx/${agent.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-bold text-brand-purple/70 hover:text-brand-purple uppercase tracking-widest flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          View <Globe className="w-3 h-3" />
+                        </a>
+                      </motion.div>
+                    ))}
+
+                    {allAgents.length > GLOBAL_PER_PAGE && (
+                      <div className="flex items-center justify-center gap-4 mt-4">
+                        <button onClick={() => setGlobalPage(p => Math.max(1, p - 1))} disabled={globalPage === 1} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white disabled:opacity-20 transition-all">Previous</button>
+                        <span className="text-white/30 text-xs">{globalPage} / {Math.ceil(allAgents.length / GLOBAL_PER_PAGE)}</span>
+                        <button onClick={() => setGlobalPage(p => Math.min(Math.ceil(allAgents.length / GLOBAL_PER_PAGE), p + 1))} disabled={globalPage === Math.ceil(allAgents.length / GLOBAL_PER_PAGE)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white disabled:opacity-20 transition-all">Next</button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -543,16 +628,16 @@ export default function MissionControl() {
       </div>
 
       {/* Agent Detail Modal */}
-      <AgentDetailModal 
-        agent={selectedAgent} 
-        onClose={() => setSelectedAgent(null)} 
+      <AgentDetailModal
+        agent={selectedAgent}
+        onClose={() => setSelectedAgent(null)}
       />
 
       {/* Naming Modal */}
       <AnimatePresence>
         {isNamingModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -578,26 +663,26 @@ export default function MissionControl() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-white/30 tracking-widest mb-2 px-1">Agent Designation</label>
-                  <input 
+                  <input
                     autoFocus
-                    type="text" 
+                    type="text"
                     placeholder="e.g. PR1M3-Trader"
                     value={tempAgentName}
                     onChange={(e) => setTempAgentName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && tempAgentName.trim()) {
-                          setIsNamingModalOpen(false);
-                          handleSpawn(tempAgentName);
+                        setIsNamingModalOpen(false);
+                        handleSpawn(tempAgentName);
                       }
                     }}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-white/10 focus:outline-none focus:border-brand-cyan/50 focus:bg-white/[0.07] transition-all"
                   />
                 </div>
-                
+
                 <button
                   onClick={() => {
-                      setIsNamingModalOpen(false);
-                      handleSpawn(tempAgentName);
+                    setIsNamingModalOpen(false);
+                    handleSpawn(tempAgentName);
                   }}
                   disabled={!tempAgentName.trim()}
                   className="w-full py-4 rounded-2xl bg-brand-cyan text-black font-bold uppercase tracking-widest text-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-cyan/90 transition-all shadow-lg shadow-brand-cyan/10"

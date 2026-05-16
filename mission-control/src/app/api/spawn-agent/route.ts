@@ -2,6 +2,31 @@ import { NextResponse } from "next/server";
 import path from "path";
 import { spawn } from "child_process";
 import fs from "fs";
+import crypto from "crypto";
+
+const DEMO_MODE = process.env.DEMO_MODE === "true";
+
+// ─── DEMO MODE: Generates realistic-looking mock data without touching the network ───
+async function handleDemoSpawn(name: string) {
+  // Simulate a realistic pipeline delay (15-20s gives time to narrate during demo)
+  await new Promise((r) => setTimeout(r, 18000));
+
+  const agentId = Math.floor(Math.random() * 900) + 100;
+  const rootHash = "0x" + crypto.randomBytes(32).toString("hex");
+  const txHash = "0x" + crypto.randomBytes(32).toString("hex");
+  const provingTime = (32 + Math.random() * 12).toFixed(1) + "s";
+
+  return NextResponse.json({
+    success: true,
+    name: name,
+    agentId: String(agentId),
+    rootHash: rootHash,
+    provingTime: provingTime,
+    txHash: txHash,
+    demo: true,
+    message: "Sovereign Agent E2E Flow Completed Successfully (Demo Mode)",
+  });
+}
 
 // Fire-and-forget runner: starts the ZK proof process and returns immediately.
 // The UI polls /api/get-agents until the new agent appears on-chain.
@@ -49,6 +74,12 @@ export async function POST(request: Request) {
 
     if (!name || typeof name !== "string") {
       return NextResponse.json({ success: false, message: "Valid agent name is required" }, { status: 400 });
+    }
+
+    // ─── DEMO MODE SHORTCUT ───
+    if (DEMO_MODE) {
+      console.log(`[API] 🎬 DEMO MODE — Simulating spawn for: ${name}`);
+      return handleDemoSpawn(name);
     }
 
     const orchestratorPath = path.resolve(process.cwd(), "..", "ai-orchestrator");
