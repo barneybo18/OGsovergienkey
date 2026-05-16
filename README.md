@@ -16,6 +16,19 @@
 
 ---
 
+## 🚀 Live Demo Disclaimer
+
+**Live Deployment:** [enclavekeys.vercel.app](https://enclavekeys.vercel.app/)
+
+> [!IMPORTANT]
+> The live deployment on Vercel runs in **Demo Mode**. 
+>
+> Since Vercel uses serverless functions with strict resource limits, it cannot run the heavy background ZK Prover (which requires significant RAM and persistent background processes). To provide a seamless experience for judges and users, the "Spawn" and "Execute" actions in the live demo use a high-fidelity **Simulation Engine** that replicates the exact 0G storage, identity generation, and ZK proving delays without the server overhead.
+>
+> To run the **Full Production Prover**, please follow the [Quick Start](#quick-start) guide to run the AI Orchestrator on a local machine or a persistent VPS.
+
+---
+
 ## The Problem
 
 Today's AI agents are powerful but **custodial**. Their keys are held by platforms, their actions are opaque, and their "memory" lives on centralized servers. If the platform disappears, so does the agent.
