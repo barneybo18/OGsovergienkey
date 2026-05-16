@@ -168,7 +168,6 @@ export class SovereignAgent {
         const { pA, pB, pC, pubSignals } = await generateProof(
             amount, 
             targetAddress,
-            1, // assetId
             1000, 
             targetAddress
         );
@@ -217,7 +216,7 @@ export class SovereignAgent {
 
         // 3. Encode proof as bytes for the contract
         const proof = ethers.AbiCoder.defaultAbiCoder().encode(
-            ["uint[2]", "uint[2][2]", "uint[2]", "uint[4]"],
+            ["uint[2]", "uint[2][2]", "uint[2]", "uint[3]"],
             [pA, pB, pC, pubSignals]
         );
 
@@ -288,7 +287,6 @@ async function run() {
     // Parameters from command line
     const name = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : `Bot-${Math.floor(Math.random() * 1000)}`;
     const userAddress = process.argv[3] && !process.argv[3].startsWith("--") ? process.argv[3] : "";
-    const reportPath = path.join(__dirname, "../../report.md");
     
     if (!userAddress && !process.argv.includes("--prepare-only")) {
         console.error("❌ Error: User address is required for non-prepare mode.");
@@ -304,33 +302,17 @@ async function run() {
         }
 
         if (!isSpawnOnly) {
+            const target = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
             await agent.executeIntent(agentId, 800, target);
         }
 
         console.log("\n🚀 MISSION SUCCESSFUL: Sovereign Agent is live and secured.");
-        
-        // Append to report.md
-        const reportEntry = `\n### 🟢 Spawn Run: ${new Date().toISOString()}
-- **Agent Name**: ${name}
-- **Agent ID**: ${agentId}
-- **Status**: SUCCESS
-- **Execution**: Mock/Local ZK Proof generation succeeded and intent anchored on Galileo Testnet.
----`;
-        fs.appendFileSync(reportPath, reportEntry, "utf-8");
         process.exit(0);
         
     } catch (error) {
         console.error("\n❌ MISSION FAILED:", error);
         
-        // Append to report.md
         const errorMessage = error instanceof Error ? error.message : String(error);
-        const reportEntry = `\n### 🔴 Spawn Run: ${new Date().toISOString()}
-- **Agent Name**: ${name}
-- **Status**: FAILED
-- **Error log**: \`${errorMessage}\`
----`;
-        fs.appendFileSync(reportPath, reportEntry, "utf-8");
-        
         process.exit(1);
     }
 }

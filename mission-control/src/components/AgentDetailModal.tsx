@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Shield, Cpu, Network, Lock, Fingerprint, Database, ExternalLink, Copy, Terminal, History, Info, Code, CheckCircle2, AlertCircle } from "lucide-react";
 import { useState } from "react";
+import { useAccount } from "wagmi";
 import { TaskPanel } from "./TaskPanel";
 
 interface AgentDetailModalProps {
@@ -22,8 +23,11 @@ interface AgentDetailModalProps {
 type Tab = "identity" | "governance" | "action";
 
 export function AgentDetailModal({ agent, onClose }: AgentDetailModalProps) {
+  const { chain } = useAccount();
   const [activeTab, setActiveTab] = useState<Tab>("identity");
   const [showSource, setShowSource] = useState(false);
+
+  const explorerBase = chain?.blockExplorers?.default.url || "https://chainscan-galileo.0g.ai";
 
   if (!agent) return null;
 
@@ -150,7 +154,7 @@ component main = Constitution();`;
                       <Network size={12} className="text-brand-purple" /> Genesis Proof
                     </p>
                     <a 
-                      href={`https://scan-testnet.0g.ai/tx/${agent.txHash}`}
+                      href={`${explorerBase}/tx/${agent.txHash}`}
                       target="_blank"
                       className="text-[10px] text-white/30 font-mono break-all block leading-relaxed hover:text-brand-cyan transition-colors"
                     >

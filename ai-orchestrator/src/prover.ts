@@ -10,7 +10,7 @@ export interface Groth16ProofResult {
     pA: [bigint, bigint];
     pB: [[bigint, bigint], [bigint, bigint]];
     pC: [bigint, bigint];
-    pubSignals: [bigint, bigint, bigint, bigint];
+    pubSignals: [bigint, bigint, bigint];
 }
 
 /**
@@ -55,7 +55,7 @@ export async function generateProof(
             pA: [1n, 2n],
             pB: [[1n, 2n], [3n, 4n]],
             pC: [1n, 2n],
-            pubSignals: [BigInt(intentAmount || 0), targetBigInt, 1n, 1n]
+            pubSignals: [BigInt(intentAmount || 0), targetBigInt, 1n]
         };
     }
 
@@ -85,11 +85,10 @@ export async function generateProof(
         const pC: [bigint, bigint] = [
             BigInt(calldataArr[2][0]), BigInt(calldataArr[2][1])
         ];
-        const pubSignals: [bigint, bigint, bigint, bigint] = [
+        const pubSignals: [bigint, bigint, bigint] = [
             BigInt(calldataArr[3][0]),
             BigInt(calldataArr[3][1]),
-            BigInt(calldataArr[3][2]),
-            BigInt(calldataArr[3][3])
+            BigInt(calldataArr[3][2])
         ];
 
         console.log(`[ZK-Prover] Running local verification...`);
@@ -109,7 +108,7 @@ export async function generateProof(
             pA: [1n, 2n], 
             pB: [[1n, 2n], [3n, 4n]], 
             pC: [1n, 2n], 
-            pubSignals: [BigInt(intentAmount || 0), targetBigInt, 1n, 1n]
+            pubSignals: [BigInt(intentAmount || 0), targetBigInt, 1n]
         };
     }
 }
