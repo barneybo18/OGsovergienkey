@@ -26,13 +26,14 @@ export async function GET(request: Request) {
 
     const networkConf = NETWORK_CONFIG[chainId] ?? NETWORK_CONFIG[16602];
 
-    // Load addresses for the requested network
-    const addressesPath = path.resolve(process.cwd(), "..", "contracts", "addresses.json");
-    const allAddresses = JSON.parse(fs.readFileSync(addressesPath, "utf8"));
-    // Strictly use only the network-specific key — no cross-network fallback
-    const addresses = allAddresses[networkConf.key] ?? {};
+    // Load bundled contract config (addresses and ABI)
+    const contractsPath = path.resolve(process.cwd(), "src", "config", "contracts.json");
+    const contracts = JSON.parse(fs.readFileSync(contractsPath, "utf8"));
+    
+    // Get addresses for the requested network
+    const networkAddresses = contracts.addresses[networkConf.key] ?? {};
 
-    if (!addresses.AgentRegistry) {
+    if (!networkAddresses.AgentRegistry) {
       return NextResponse.json({
         success: true,
         agents: [],
@@ -42,12 +43,7 @@ export async function GET(request: Request) {
     }
 
     const provider = new ethers.JsonRpcProvider(networkConf.rpc);
-
-    const registryArtifactPath = path.resolve(
-      process.cwd(), "..", "contracts", "artifacts", "contracts", "AgentRegistry.sol", "AgentRegistry.json"
-    );
-    const registryAbi = JSON.parse(fs.readFileSync(registryArtifactPath, "utf8")).abi;
-    const registry = new ethers.Contract(addresses.AgentRegistry, registryAbi, provider);
+    const registry = new ethers.Contract(networkAddresses.AgentRegistry, contracts.abi, provider);
 
     // Query all agents from the correct deployment block for this network
     const filter = registry.filters.AgentRegistered();

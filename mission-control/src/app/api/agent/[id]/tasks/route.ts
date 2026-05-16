@@ -17,12 +17,14 @@ export async function GET(
 
     const provider = new ethers.JsonRpcProvider(rpcEndpoint);
 
-    const addressesPath = path.resolve(process.cwd(), "..", "contracts", "addresses.json");
-    const addresses = JSON.parse(fs.readFileSync(addressesPath, "utf8"));
+    const contractsPath = path.resolve(process.cwd(), "src", "config", "contracts.json");
+    const contracts = JSON.parse(fs.readFileSync(contractsPath, "utf8"));
     
-    const registryArtifactPath = path.resolve(process.cwd(), "..", "contracts", "artifacts", "contracts", "AgentRegistry.sol", "AgentRegistry.json");
-    const registryAbi = JSON.parse(fs.readFileSync(registryArtifactPath, "utf8")).abi;
-    const registry = new ethers.Contract(addresses.AgentRegistry, registryAbi, provider);
+    // Fallback to default if ACTIVE_NETWORK isn't set
+    const network = process.env.ACTIVE_NETWORK || "mainnet";
+    const registryAddress = contracts.addresses[network]?.AgentRegistry || contracts.addresses.mainnet.AgentRegistry;
+
+    const registry = new ethers.Contract(registryAddress, contracts.abi, provider);
 
     const tasks = await registry.getAgentTasks(agentId);
 
