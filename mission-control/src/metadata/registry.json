@@ -36,10 +36,14 @@
     "rootHashes": {
       "0xa68baf963ca1fc44f6b5695966e6262df8d904132a129e347af22c0231ac24ca": {
         "name": "Banny-trades"
+      },
+      "0xa761a719b3240ce5078c077fb62eaea1351b1010390e15d2f7717723cad39d32": {
+        "name": "banny-agent-2"
       }
     },
     "provingHistory": [
-      5.7
+      5.7,
+      8
     ]
   }
 }

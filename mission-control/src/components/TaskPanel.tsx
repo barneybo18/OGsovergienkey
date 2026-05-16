@@ -16,8 +16,9 @@ interface Task {
 }
 
 export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const config = useConfig();
+  const explorerBase = chain?.blockExplorers?.default.url || "https://chainscan-galileo.0g.ai";
   const { sendTransactionAsync } = useSendTransaction();
   const [instruction, setInstruction] = useState('');
   const [taskType, setTaskType] = useState('Transfer');
@@ -179,7 +180,7 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Verified Settlement</span>
               <a 
-                href={`https://chainscan-galileo.0g.ai/tx/${lastTxHash}`} 
+                href={`${explorerBase}/tx/${lastTxHash}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-[10px] text-brand-cyan hover:underline flex items-center gap-1 font-bold"
@@ -238,7 +239,7 @@ export function TaskPanel({ agentId, owner }: { agentId: string; owner: string }
                     <p className="text-[9px] text-white/30 uppercase font-bold mb-2 tracking-widest flex items-center justify-between">
                       On-Chain Output
                       <a 
-                        href={`https://chainscan-galileo.0g.ai/address/${owner}`} 
+                        href={`${explorerBase}/address/${owner}`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="text-brand-cyan hover:underline flex items-center gap-1"
